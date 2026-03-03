@@ -446,7 +446,7 @@ function AIAgent() {
 
       updateStatus("Consulting card database and metagame data...");
 
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -490,7 +490,7 @@ function AIAgent() {
 
         updateStatus("Processing search results and building strategy...");
 
-        const contResp = await fetch("https://api.anthropic.com/v1/messages", {
+        const contResp = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -691,7 +691,7 @@ function GuidedBuilder() {
       setStatus("AI constructing decklist..."); log("Sending to AI...");
       const tops = cards.slice(0,150).map(c => `${c.name} | ${c.mana_cost||""} | ${c.type_line} | ${(c.oracle_text||"").substring(0,100)}`).join("\n");
       const cn = cfg.colors.map(c => COLORS.find(x => x.id===c)?.name).join("/")||"Colorless";
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      const resp = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 4096,
