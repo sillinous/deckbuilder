@@ -49,6 +49,16 @@ WHEN BUILDING A DECK, think step-by-step:
 - Are there primary AND backup win conditions?
 - Is every single card slot justified?
 
+MANA BASE — NON-NEGOTIABLE REQUIREMENTS:
+Every 60-card deck MUST include 22-26 lands. Every 100-card Commander deck MUST include 35-40 lands. NEVER skip lands.
+- Include the correct fetch lands, shock lands, dual lands, and utility lands for the colors
+- Always include basic lands (Plains, Island, Swamp, Mountain, Forest) for fetch targets and anti-Blood Moon resilience
+- For 1-color: ~20 basics + 2-4 utility lands
+- For 2-color: 4 fetches, 2-4 shocks/duals, 2-4 fast lands, 4-6 basics, 1-2 utility
+- For 3-color: 8-10 fetches, 3-4 shocks/triomes, 2-3 fast lands, 2-4 basics, 1-2 utility
+- Count ALL card types: Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, AND Lands
+- The decklist is NOT complete without lands. A 60-card deck means ~36 spells + ~24 lands = 60 total
+
 OUTPUT FORMAT FOR DECKLISTS — use EXACTLY this structure:
 
 ===DECKLIST_START===
@@ -178,7 +188,24 @@ function deckColorIds(deck) {
 
 function deckToText(deck) {
   const lines = [];
-  deck.mainboard.forEach(c => lines.push(`${c.qty} ${c.name}`));
+  // Group by type for clarity
+  const typeOrder = ["Creature","Planeswalker","Instant","Sorcery","Enchantment","Artifact","Land","Other"];
+  const groups = {};
+  deck.mainboard.forEach(c => {
+    const tl = c.cardData?.type_line || "";
+    let g = "Other";
+    for (const x of typeOrder) if (tl.includes(x)) { g = x; break; }
+    (groups[g] = groups[g] || []).push(c);
+  });
+  typeOrder.forEach(g => {
+    if (!groups[g]?.length) return;
+    const count = groups[g].reduce((s, c) => s + c.qty, 0);
+    lines.push(`// ${g}s (${count})`);
+    groups[g].forEach(c => lines.push(`${c.qty} ${c.name}`));
+  });
+  const total = deck.mainboard.reduce((s, c) => s + c.qty, 0);
+  const lands = (groups["Land"] || []).reduce((s, c) => s + c.qty, 0);
+  lines.push(`// Total: ${total} cards, ${lands} lands`);
   if (deck.sideboard?.length) {
     lines.push(""); lines.push("Sideboard");
     deck.sideboard.forEach(c => lines.push(`${c.qty} ${c.name}`));
@@ -273,13 +300,19 @@ function DeckDisplay({ deck, onHover, compact }) {
 
   return (
     <div style={{ background: "#090909", border: "1px solid #181818", borderRadius: 10, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["SB", totalS]].map(([l, v]) => (
-          <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: "1px solid #1a1a1a" }}>
+          <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : "#1a1a1a"}` }}>
             <span style={{ fontSize: 9, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{l} </span>
-            <span style={{ fontSize: 13, color: "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+            <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
           </div>
         ))}
+        {totalM >= 40 && lands === 0 && (
+          <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
+        )}
+        {totalM >= 40 && lands > 0 && lands < 20 && (
+          <span style={{ fontSize: 10, color: "#E05A50", fontStyle: "italic" }}>⚠ Low lands</span>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 200px", gap: 14 }}>
@@ -439,10 +472,7 @@ function AIAgent({ onSaveDeck }) {
     for (const entry of all) {
       const k = entry.name.toLowerCase();
       if (cache[k]) { entry.cardData = cache[k]; done++; continue; }
-      if (["plains","island","swamp","mountain","forest"].includes(k)) {
-        cache[k] = { name: entry.name, type_line: "Basic Land — " + entry.name, cmc: 0, colors: [], color_identity: [] };
-        entry.cardData = cache[k]; done++; continue;
-      }
+      // Fetch ALL cards from Scryfall including basic lands (for proper images)
       try {
         const cd = await sfNamed(entry.name);
         if (cd) { cache[k] = cd; entry.cardData = cd; }
@@ -558,13 +588,48 @@ function GuidedBuilder({ onSaveDeck }) {
       let cards = [], pg = 1, more = true;
       while (more && pg <= 3) { log(`Page ${pg}...`); const r = await sfSearch(qp.join(" "), pg); cards.push(...(r.data||[])); more = r.has_more; pg++; await new Promise(r => setTimeout(r, 120)); }
       log(`${cards.length} candidates`);
-      if (cfg.colors.length) { const lr = await sfSearch(`f:${cfg.format} t:land id<=${cfg.colors.join("")} -t:basic`, 1); cards.push(...(lr.data||[]).slice(0,25)); }
+      // Fetch non-basic lands for the color identity
+      if (cfg.colors.length) {
+        log("Searching lands...");
+        const lr = await sfSearch(`f:${cfg.format} t:land id<=${cfg.colors.join("")} -t:basic`, 1);
+        cards.push(...(lr.data||[]).slice(0,40));
+        // Also fetch fetch lands and shock lands specifically
+        if (cfg.colors.length >= 2) {
+          const lr2 = await sfSearch(`f:${cfg.format} t:land o:search (t:plains OR t:island OR t:swamp OR t:mountain OR t:forest) id<=${cfg.colors.join("")}`, 1);
+          cards.push(...(lr2.data||[]).slice(0,15));
+          await new Promise(r => setTimeout(r, 120));
+        }
+      } else {
+        // Colorless: fetch utility lands
+        log("Searching colorless lands...");
+        const lr = await sfSearch(`f:${cfg.format} t:land id:c`, 1);
+        cards.push(...(lr.data||[]).slice(0,30));
+        await new Promise(r => setTimeout(r, 120));
+      }
+      // Always add basic lands to the pool
+      const basicNames = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
+      const colorBasics = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+      const relevantBasics = cfg.colors.length ? cfg.colors.map(c => colorBasics[c]).filter(Boolean) : basicNames;
+      relevantBasics.forEach(name => {
+        cards.push({ name, mana_cost: "", type_line: "Basic Land — " + name, oracle_text: `{T}: Add {${name === "Plains" ? "W" : name === "Island" ? "U" : name === "Swamp" ? "B" : name === "Mountain" ? "R" : "G"}}.`, cmc: 0 });
+      });
       setStatus("AI constructing decklist..."); log("Sending to AI...");
-      const tops = cards.slice(0,150).map(c => `${c.name} | ${c.mana_cost||""} | ${c.type_line} | ${(c.oracle_text||"").substring(0,100)}`).join("\n");
+      const tops = cards.slice(0,200).map(c => `${c.name} | ${c.mana_cost||""} | ${c.type_line} | ${(c.oracle_text||"").substring(0,100)}`).join("\n");
       const cn = cfg.colors.map(c => COLORS.find(x => x.id===c)?.name).join("/")||"Colorless";
       const resp = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Size: ${fmt.deckSize}.${fmt.sb?` SB: ${fmt.sb}.`:""} Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Then provide analysis.`, messages: [{ role: "user", content: `Build it.${cfg.strat?` Strategy: ${cfg.strat}`:""}${cfg.meta?` Beat: ${cfg.meta}`:""}${cfg.cmdr?` Commander: ${cfg.cmdr}`:""}\n\nCards:\n${tops}` }] }),
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Deck size: EXACTLY ${fmt.deckSize} cards total.${fmt.sb?` Sideboard: EXACTLY ${fmt.sb} cards.`:""}
+
+CRITICAL REQUIREMENTS:
+1. The deck MUST include ALL card types: Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, AND Lands
+2. For a 60-card deck: include 22-26 LANDS (fetch lands, shock lands, dual lands, fast lands, basics, utility lands)
+3. For a 100-card deck: include 35-40 LANDS
+4. Use the correct mana-fixing lands for the color combination (e.g., Godless Shrine + Marsh Flats for W/B, Steam Vents + Scalding Tarn for U/R)
+5. Always include basic lands as fetch targets: Plains, Island, Swamp, Mountain, Forest
+6. Count carefully: spells + lands = EXACTLY ${fmt.deckSize}
+7. A decklist without lands is INCOMPLETE and INVALID
+
+Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, Lands). Then provide strategic analysis.`, messages: [{ role: "user", content: `Build it.${cfg.strat?` Strategy: ${cfg.strat}`:""}${cfg.meta?` Beat: ${cfg.meta}`:""}${cfg.cmdr?` Commander: ${cfg.cmdr}`:""}\n\nAvailable cards (use these AND any other legal cards including lands):\n${tops}` }] }),
       });
       if (!resp.ok) throw new Error(`API ${resp.status}`);
       const data = await resp.json(); const text = data.content.map(b => b.text||"").join("\n");
@@ -573,7 +638,7 @@ function GuidedBuilder({ onSaveDeck }) {
       const cache = {}; cards.forEach(c => cache[c.name.toLowerCase()] = c);
       for (const e of [...parsed.mainboard, ...parsed.sideboard]) {
         const k = e.name.toLowerCase();
-        if (!cache[k] && !["plains","island","swamp","mountain","forest"].includes(k)) { const cd = await sfNamed(e.name); if (cd) cache[k] = cd; await new Promise(r => setTimeout(r, 70)); }
+        if (!cache[k]) { const cd = await sfNamed(e.name); if (cd) cache[k] = cd; await new Promise(r => setTimeout(r, 70)); }
       }
       const enrich = l => l.map(e => ({ ...e, cardData: cache[e.name.toLowerCase()]||null }));
       log("✓ Complete!");
@@ -625,7 +690,7 @@ function GuidedBuilder({ onSaveDeck }) {
         <div><div style={{fontSize:9,color:"#444",marginBottom:3}}>Strategy</div><textarea value={cfg.strat} onChange={e=>setCfg(p=>({...p,strat:e.target.value}))} placeholder="e.g. graveyard synergies..." style={ta}/></div>
         <div><div style={{fontSize:9,color:"#444",marginBottom:3}}>Beat these decks</div><textarea value={cfg.meta} onChange={e=>setCfg(p=>({...p,meta:e.target.value}))} placeholder="e.g. Burn, Tron..." style={ta}/></div>
       </div>
-      <button onClick={build} disabled={!cfg.colors.length} style={{ width:"100%",padding:"12px",background:cfg.colors.length?"linear-gradient(135deg,#c9a84c,#8a6d2f)":"#1a1a1a",border:"none",borderRadius:7,cursor:cfg.colors.length?"pointer":"not-allowed",fontFamily:"'Cinzel', serif",fontSize:13,fontWeight:700,color:cfg.colors.length?"#0a0a0a":"#444",letterSpacing:2 }}>
+      <button onClick={build} style={{ width:"100%",padding:"12px",background:"linear-gradient(135deg,#c9a84c,#8a6d2f)",border:"none",borderRadius:7,cursor:"pointer",fontFamily:"'Cinzel', serif",fontSize:13,fontWeight:700,color:"#0a0a0a",letterSpacing:2 }}>
         ✦ CONSTRUCT ✦
       </button>
     </div>
@@ -638,7 +703,9 @@ function GuidedBuilder({ onSaveDeck }) {
 
 const SIM_SYSTEM = `You are Arcanum — the world's most elite MTG match simulator. You simulate games of Magic: The Gathering between two decks with EXTREME realism.
 
-For each game, consider: opening hands, mulligans, mana curve efficiency, card interactions, matchup dynamics, sideboard impact (games 2-3), tempo, card advantage, and win conditions.
+For each game, consider: opening hands, mulligans, mana curve efficiency, MANA BASE QUALITY (land count, color fixing, fetch/shock/dual lands), card interactions, matchup dynamics, sideboard impact (games 2-3), tempo, card advantage, and win conditions.
+
+CRITICAL: A deck with too few lands (under 20 in a 60-card deck) will frequently mana-screw and lose. A deck with no lands is NON-FUNCTIONAL and auto-loses every game. Factor land count and mana base quality heavily into simulation results.
 
 You must simulate with nuance — aggro doesn't always beat control. Games involve variance. The better-positioned deck wins MORE often, but upsets happen.
 
