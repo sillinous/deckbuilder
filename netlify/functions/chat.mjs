@@ -1,7 +1,7 @@
 // Netlify serverless function — proxies requests to the Anthropic API
 // Set ANTHROPIC_API_KEY in Netlify environment variables
 
-export default async (req) => {
+export default async (req, context) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -15,14 +15,28 @@ export default async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Try multiple ways to get the key
+  const apiKey = process.env.ANTHROPIC_API_KEY
+    || (typeof Netlify !== "undefined" && Netlify.env && Netlify.env.get("ANTHROPIC_API_KEY"))
+    || null;
+
   if (!apiKey) {
     return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: "ANTHROPIC_API_KEY not configured",
+        debug: {
+          hasProcessEnv: !!process.env.ANTHROPIC_API_KEY,
+          envKeys: Object.keys(process.env).filter(k => k.includes("ANTHRO")),
+          version: "v4",
+        },
+      }),
+      { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   }
 
