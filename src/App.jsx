@@ -1,6 +1,66 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 // ═══════════════════════════════════════════════════════════
+// AI PROVIDER CONFIG
+// ═══════════════════════════════════════════════════════════
+
+const AI_PROVIDERS = [
+  { id: "groq-free", name: "Groq (Free)", desc: "Llama 3.3 70B — no key needed, shared rate limit", needsKey: false,
+    models: [{ id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" }], defaultModel: "llama-3.3-70b-versatile" },
+  { id: "groq", name: "Groq", desc: "Your own key — higher rate limits", needsKey: true, url: "https://console.groq.com/keys",
+    models: [
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B (fast)" },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+      { id: "gemma2-9b-it", name: "Gemma 2 9B" },
+    ], defaultModel: "llama-3.3-70b-versatile" },
+  { id: "anthropic", name: "Anthropic", desc: "Claude — best quality, paid", needsKey: true, url: "https://console.anthropic.com/settings/keys",
+    models: [
+      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+      { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5 (fast)" },
+    ], defaultModel: "claude-sonnet-4-20250514" },
+  { id: "openrouter", name: "OpenRouter", desc: "Access any model — pay per token", needsKey: true, url: "https://openrouter.ai/keys",
+    models: [
+      { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
+      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+      { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek V3" },
+      { id: "mistralai/mistral-medium-3", name: "Mistral Medium 3" },
+    ], defaultModel: "anthropic/claude-sonnet-4" },
+  { id: "openai", name: "OpenAI", desc: "GPT-4o — paid", needsKey: true, url: "https://platform.openai.com/api-keys",
+    models: [
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini (fast)" },
+      { id: "gpt-4.1", name: "GPT-4.1" },
+      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
+    ], defaultModel: "gpt-4o" },
+];
+
+function loadProviderConfig() {
+  try {
+    const raw = localStorage.getItem("arcanum_provider");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { providerId: "groq-free", apiKey: "", model: "" };
+}
+
+function saveProviderConfig(cfg) {
+  try { localStorage.setItem("arcanum_provider", JSON.stringify(cfg)); } catch {}
+}
+
+function getApiHeaders(cfg) {
+  const h = { "Content-Type": "application/json" };
+  if (cfg?.providerId && cfg.providerId !== "groq-free") {
+    h["X-Provider"] = cfg.providerId;
+    if (cfg.apiKey) h["X-API-Key"] = cfg.apiKey;
+    if (cfg.model) h["X-Model"] = cfg.model;
+  } else {
+    h["X-Provider"] = "groq-free";
+  }
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════
 
@@ -454,7 +514,7 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
 // AI AGENT — PRIMARY FEATURE
 // ═══════════════════════════════════════════════════════════
 
-function AIAgent({ onSaveDeck }) {
+function AIAgent({ onSaveDeck, providerCfg }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -503,7 +563,7 @@ function AIAgent({ onSaveDeck }) {
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) { updateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
         resp = await fetch("/api/chat", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: getApiHeaders(providerCfg),
           body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
         });
         if (resp.status !== 429) break;
@@ -571,7 +631,7 @@ function AIAgent({ onSaveDeck }) {
 // GUIDED BUILDER (compact — unchanged)
 // ═══════════════════════════════════════════════════════════
 
-function GuidedBuilder({ onSaveDeck }) {
+function GuidedBuilder({ onSaveDeck, providerCfg }) {
   const [cfg, setCfg] = useState({ format: "modern", colors: [], arch: "midrange", strat: "", meta: "", cmdr: "", budget: false });
   const [phase, setPhase] = useState("cfg");
   const [status, setStatus] = useState("");
@@ -636,7 +696,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
       let resp;
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) { log(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
-        resp = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: buildBody });
+        resp = await fetch("/api/chat", { method: "POST", headers: getApiHeaders(providerCfg), body: buildBody });
         if (resp.status !== 429) break;
       }
       if (!resp.ok) throw new Error(`API ${resp.status}`);
@@ -734,7 +794,7 @@ OUTPUT FORMAT — respond with ONLY this JSON structure, no other text:
   "analysis": "3-5 sentence detailed analysis of the matchup dynamics, what decided the match, and how each deck performed relative to expectations."
 }`;
 
-function Arena({ vault, setVault }) {
+function Arena({ vault, setVault, providerCfg }) {
   const [selected, setSelected] = useState([]);
   const [bestOf, setBestOf] = useState(3);
   const [matchCount, setMatchCount] = useState(1);
@@ -810,7 +870,7 @@ Simulate exactly ${bestOf === 1 ? "1 game" : `a Best-of-${bestOf} series (stop w
               await new Promise(r => setTimeout(r, wait));
             }
             resp = await fetch("/api/chat", {
-              method: "POST", headers: { "Content-Type": "application/json" },
+              method: "POST", headers: getApiHeaders(providerCfg),
               body: JSON.stringify({ model: "x", max_tokens: 2000, system: SIM_SYSTEM, messages: [{ role: "user", content: prompt }] }),
             });
             if (resp.status !== 429) break;
@@ -885,7 +945,7 @@ Simulate exactly ${bestOf === 1 ? "1 game" : `a Best-of-${bestOf} series (stop w
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt)));
         resp = await fetch("/api/chat", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: getApiHeaders(providerCfg),
           body: JSON.stringify({
             model: "x", max_tokens: 3000,
             system: "You are Arcanum — the world's most elite MTG analyst. You provide tournament-level post-event analysis with strong opinions and actionable insights.",
@@ -1184,11 +1244,180 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
 // MAIN APP
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// SETTINGS MODAL — Provider & API Key Config
+// ═══════════════════════════════════════════════════════════
+
+function SettingsModal({ config, setConfig, onClose }) {
+  const [localCfg, setLocalCfg] = useState({ ...config });
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState(null);
+  const provider = AI_PROVIDERS.find(p => p.id === localCfg.providerId) || AI_PROVIDERS[0];
+
+  const handleProviderChange = (id) => {
+    const p = AI_PROVIDERS.find(x => x.id === id);
+    setLocalCfg(prev => ({ ...prev, providerId: id, model: p?.defaultModel || "", apiKey: id === prev.providerId ? prev.apiKey : "" }));
+    setTestStatus(null);
+  };
+
+  const handleSave = () => {
+    setConfig(localCfg);
+    saveProviderConfig(localCfg);
+    onClose();
+  };
+
+  const testConnection = async () => {
+    setTestStatus("testing");
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: getApiHeaders(localCfg),
+        body: JSON.stringify({ model: "x", max_tokens: 50, system: "Reply with exactly: OK", messages: [{ role: "user", content: "test" }] }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = (data.content || []).map(b => b.text || "").join("");
+        setTestStatus(text ? "success" : "error");
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        setTestStatus("error:" + (data.error?.message || `HTTP ${resp.status}`));
+      }
+    } catch (e) { setTestStatus("error:" + e.message); }
+  };
+
+  const modalBg = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease" };
+  const panel = { background: "#0c0c0c", border: "1px solid #1a1a1a", borderRadius: 14, padding: "24px 28px", width: 460, maxHeight: "85vh", overflowY: "auto" };
+  const label = { fontSize: 9, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" };
+  const inp = { width: "100%", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 5, padding: "8px 12px", color: "#bbb", fontSize: 12, fontFamily: "'Crimson Text', serif", outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={modalBg} onClick={onClose}>
+      <div style={panel} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 15, color: "#c9a84c", letterSpacing: 2 }}>⚙ AI SETTINGS</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", fontSize: 18, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Provider selection */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={label}>PROVIDER</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {AI_PROVIDERS.map(p => (
+              <button key={p.id} onClick={() => handleProviderChange(p.id)} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                background: localCfg.providerId === p.id ? "#c9a84c08" : "#080808",
+                border: `1px solid ${localCfg.providerId === p.id ? "#c9a84c33" : "#141414"}`,
+                borderRadius: 7, cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+              }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: localCfg.providerId === p.id ? "#c9a84c" : "#222",
+                  flexShrink: 0,
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: localCfg.providerId === p.id ? "#c9a84c" : "#888", fontWeight: 600 }}>
+                    {p.name}
+                    {!p.needsKey && <span style={{ fontSize: 9, color: "#4DB87A", marginLeft: 8, fontWeight: 400 }}>FREE</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#444", marginTop: 2 }}>{p.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* API Key */}
+        {provider.needsKey && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={label}>API KEY</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  type={showKey ? "text" : "password"}
+                  value={localCfg.apiKey}
+                  onChange={e => { setLocalCfg(prev => ({ ...prev, apiKey: e.target.value })); setTestStatus(null); }}
+                  placeholder={`Paste your ${provider.name} API key...`}
+                  style={inp}
+                />
+                <button onClick={() => setShowKey(!showKey)} style={{
+                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 11,
+                }}>{showKey ? "🙈" : "👁"}</button>
+              </div>
+            </div>
+            {provider.url && (
+              <a href={provider.url} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 10, color: "#4DA3D4", textDecoration: "none", marginTop: 4, display: "inline-block" }}>
+                → Get a {provider.name} API key
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Model selection */}
+        {provider.models.length > 1 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={label}>MODEL</div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {provider.models.map(m => (
+                <button key={m.id} onClick={() => setLocalCfg(prev => ({ ...prev, model: m.id }))}
+                  style={{
+                    padding: "5px 10px", borderRadius: 5, fontSize: 10, cursor: "pointer",
+                    fontFamily: "'Cinzel', serif",
+                    background: (localCfg.model || provider.defaultModel) === m.id ? "#c9a84c10" : "#080808",
+                    border: `1px solid ${(localCfg.model || provider.defaultModel) === m.id ? "#c9a84c44" : "#1a1a1a"}`,
+                    color: (localCfg.model || provider.defaultModel) === m.id ? "#c9a84c" : "#555",
+                    transition: "all 0.15s",
+                  }}>{m.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Test connection */}
+        <div style={{ marginBottom: 20 }}>
+          <button onClick={testConnection} disabled={provider.needsKey && !localCfg.apiKey}
+            style={{
+              padding: "7px 16px", borderRadius: 5, fontSize: 10, cursor: "pointer",
+              fontFamily: "'Cinzel', serif", letterSpacing: 1,
+              background: "#0a0a0a", border: "1px solid #1a1a1a", color: "#666",
+              opacity: provider.needsKey && !localCfg.apiKey ? 0.4 : 1,
+            }}>
+            {testStatus === "testing" ? "⏳ Testing..." : "🔌 Test Connection"}
+          </button>
+          {testStatus === "success" && <span style={{ marginLeft: 10, fontSize: 11, color: "#4DB87A" }}>✓ Connected!</span>}
+          {testStatus?.startsWith("error") && <span style={{ marginLeft: 10, fontSize: 11, color: "#E05A50" }}>✗ {testStatus.replace("error:", "")}</span>}
+        </div>
+
+        {/* Info */}
+        <div style={{ padding: "10px 12px", background: "#080808", borderRadius: 6, border: "1px solid #141414", marginBottom: 18 }}>
+          <div style={{ fontSize: 10, color: "#444", lineHeight: 1.7, fontFamily: "'Crimson Text', serif" }}>
+            <strong style={{ color: "#666" }}>Your keys stay in your browser</strong> — they're sent directly to the provider through our serverless proxy. We never store or log API keys.
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={xBtn}>Cancel</button>
+          <button onClick={handleSave} style={{ ...xBtn, background: "#c9a84c12", color: "#c9a84c", borderColor: "#c9a84c44" }}>✦ Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════
+
 export default function MTGDeckArchitect() {
   const [tab, setTab] = useState("agent");
   const [vault, setVault] = useState(loadVault());
   const [saveModal, setSaveModal] = useState(null);
   const [saveName, setSaveName] = useState("");
+  const [providerCfg, setProviderCfg] = useState(loadProviderConfig());
+  const [showSettings, setShowSettings] = useState(false);
+  const activeProvider = AI_PROVIDERS.find(p => p.id === providerCfg.providerId) || AI_PROVIDERS[0];
 
   const handleSaveDeck = (deck) => {
     setSaveModal(deck);
@@ -1234,28 +1463,47 @@ export default function MTGDeckArchitect() {
           <span style={{ color: "#1a1a1a", fontSize: 16 }}>|</span>
           <span style={{ color: "#333", fontSize: 11, fontStyle: "italic" }}>Autonomous MTG Deck Architect</span>
         </div>
-        <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 7, border: "1px solid #181818", overflow: "hidden" }}>
-          {[
-            { id: "agent", label: "✦ AI Agent" },
-            { id: "builder", label: "⚙ Guided" },
-            { id: "arena", label: `⚔ Arena${vault.length ? ` (${vault.length})` : ""}` },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "7px 16px", border: "none", cursor: "pointer",
-              background: tab === t.id ? "#c9a84c0f" : "transparent",
-              borderBottom: tab === t.id ? "2px solid #c9a84c" : "2px solid transparent",
-              fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: 1,
-              color: tab === t.id ? "#c9a84c" : "#444", transition: "all 0.2s",
-            }}>{t.label}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 7, border: "1px solid #181818", overflow: "hidden" }}>
+            {[
+              { id: "agent", label: "✦ AI Agent" },
+              { id: "builder", label: "⚙ Guided" },
+              { id: "arena", label: `⚔ Arena${vault.length ? ` (${vault.length})` : ""}` },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                padding: "7px 16px", border: "none", cursor: "pointer",
+                background: tab === t.id ? "#c9a84c0f" : "transparent",
+                borderBottom: tab === t.id ? "2px solid #c9a84c" : "2px solid transparent",
+                fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: 1,
+                color: tab === t.id ? "#c9a84c" : "#444", transition: "all 0.2s",
+              }}>{t.label}</button>
+            ))}
+          </div>
+          {/* Provider badge + settings */}
+          <button onClick={() => setShowSettings(true)} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "5px 10px", background: "#0d0d0d", border: "1px solid #181818",
+            borderRadius: 7, cursor: "pointer", transition: "all 0.2s",
+          }}
+            onMouseOver={e => e.currentTarget.style.borderColor = "#c9a84c33"}
+            onMouseOut={e => e.currentTarget.style.borderColor = "#181818"}
+          >
+            <span style={{ fontSize: 9, color: providerCfg.providerId === "groq-free" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
+              {activeProvider.name}
+            </span>
+            <span style={{ fontSize: 12, color: "#444" }}>⚙</span>
+          </button>
         </div>
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "0 16px" }}>
-        {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} />}
-        {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} />}
-        {tab === "arena" && <Arena vault={vault} setVault={setVault} />}
+        {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
+        {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
+        {tab === "arena" && <Arena vault={vault} setVault={setVault} providerCfg={providerCfg} />}
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && <SettingsModal config={providerCfg} setConfig={setProviderCfg} onClose={() => setShowSettings(false)} />}
 
       {/* Save Modal */}
       {saveModal && (
