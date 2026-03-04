@@ -38,7 +38,20 @@ function buildOpenAIMessages(body) {
   }
   for (const msg of (body.messages || [])) {
     if (Array.isArray(msg.content)) {
-      if (msg.content.some(b => b.type === "tool_result")) continue;
+      if (msg.role === "assistant" && msg.content.some(b => b.type === "tool_use")) {
+        const text = msg.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+        const toolCalls = msg.content.filter(b => b.type === "tool_use").map(b => ({
+          id: b.id, type: "function", function: { name: b.name, arguments: JSON.stringify(b.input) }
+        }));
+        messages.push({ role: "assistant", content: text || null, tool_calls: toolCalls.length ? toolCalls : undefined });
+        continue;
+      }
+      if (msg.role === "user" && msg.content.some(b => b.type === "tool_result")) {
+        for (const tr of msg.content.filter(b => b.type === "tool_result")) {
+          messages.push({ role: "tool", tool_call_id: tr.tool_use_id, content: typeof tr.content === "string" ? tr.content : JSON.stringify(tr.content) });
+        }
+        continue;
+      }
       const text = msg.content.filter(b => b.type === "text").map(b => b.text).join("\n");
       if (text.trim()) messages.push({ role: msg.role, content: text });
       continue;
@@ -52,12 +65,21 @@ function buildOpenAIMessages(body) {
 
 function openAIToAnthropic(data) {
   const choice = data.choices?.[0];
+  const content = [];
+  if (choice?.message?.content) content.push({ type: "text", text: choice.message.content });
+  if (choice?.message?.tool_calls) {
+    for (const tc of choice.message.tool_calls) {
+      if (tc.type === "function") {
+        content.push({ type: "tool_use", id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments || "{}") });
+      }
+    }
+  }
   return {
     id: data.id || "msg_" + Date.now(),
     type: "message", role: "assistant",
-    content: [{ type: "text", text: choice?.message?.content || "" }],
+    content,
     model: data.model,
-    stop_reason: choice?.finish_reason === "stop" ? "end_turn" : (choice?.finish_reason || "end_turn"),
+    stop_reason: choice?.finish_reason === "tool_calls" ? "tool_use" : (choice?.finish_reason === "stop" ? "end_turn" : (choice?.finish_reason || "end_turn")),
     usage: { input_tokens: data.usage?.prompt_tokens || 0, output_tokens: data.usage?.completion_tokens || 0 },
   };
 }
@@ -115,6 +137,7 @@ export default async (req, context) => {
     if (provider.format === "anthropic") {
       const aBody = { model, max_tokens: maxTokens, messages: body.messages || [] };
       if (body.system) aBody.system = body.system;
+      if (body.tools) aBody.tools = body.tools;
 
       const resp = await callWithRetry(provider.url, {
         method: "POST",
@@ -137,9 +160,17 @@ export default async (req, context) => {
       hdrs["X-Title"] = "Arcanum MTG Architect";
     }
 
+    const oaiBody = { model, max_tokens: maxTokens, temperature: 0.7, messages: buildOpenAIMessages(body) };
+    if (body.tools) {
+      oaiBody.tools = body.tools.map(t => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.input_schema }
+      }));
+    }
+
     const resp = await callWithRetry(provider.url, {
       method: "POST", headers: hdrs,
-      body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.7, messages: buildOpenAIMessages(body) }),
+      body: JSON.stringify(oaiBody),
     });
 
     const data = await resp.json();

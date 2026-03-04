@@ -1,1 +1,21 @@
-{"siteId":"302e01f8-e6ee-4e9b-81d3-0afb3854cc89"}
+{
+	"siteId": "302e01f8-e6ee-4e9b-81d3-0afb3854cc89",
+	"geolocation": {
+		"data": {
+			"city": "Metropolis",
+			"country": {
+				"code": "US",
+				"name": "United States"
+			},
+			"subdivision": {
+				"code": "IL",
+				"name": "Illinois"
+			},
+			"timezone": "America/Chicago",
+			"latitude": 37.1512,
+			"longitude": -88.732,
+			"postalCode": "62960"
+		},
+		"timestamp": 1772636636466
+	}
+}

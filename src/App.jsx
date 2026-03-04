@@ -1,4 +1,20 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  sfSearch,
+  sfNamed,
+  parseDecklist,
+  hasDeck,
+  computeCurve,
+  computeTypes,
+  manaColor,
+  computePrice,
+  analyzeManaBase,
+  generateDeckArray,
+  shuffleArray,
+  drawHand,
+  exportDeck,
+  runGoldfishSim
+} from "./utils";
 
 // ═══════════════════════════════════════════════════════════
 // AI PROVIDER CONFIG
@@ -41,7 +57,7 @@ function loadProviderConfig() {
     const raw = localStorage.getItem("arcanum_provider");
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { providerId: "groq-free", apiKey: "", model: "" };
+  return { providerId: "groq-free", apiKey: "", model: "", tavilyKey: "" };
 }
 
 function saveProviderConfig(cfg) {
@@ -147,96 +163,8 @@ const QUICK_PROMPTS = [
 ];
 
 // ═══════════════════════════════════════════════════════════
-// SCRYFALL API
+// DECK FORMATTING & LOCAL STATS
 // ═══════════════════════════════════════════════════════════
-
-async function sfSearch(q, page = 1) {
-  try {
-    const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&page=${page}&order=edhrec`);
-    return r.ok ? r.json() : { data: [], has_more: false };
-  } catch { return { data: [], has_more: false }; }
-}
-
-async function sfNamed(name) {
-  try {
-    const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
-    return r.ok ? r.json() : null;
-  } catch { return null; }
-}
-
-// ═══════════════════════════════════════════════════════════
-// DECK PARSING & STATS
-// ═══════════════════════════════════════════════════════════
-
-function parseDecklist(text) {
-  const res = { mainboard: [], sideboard: [], commander: null, analysis: "" };
-  const mm = text.match(/===DECKLIST_START===([\s\S]*?)===DECKLIST_END===/);
-  const block = mm ? mm[1] : text;
-  const after = mm ? text.slice(text.indexOf("===DECKLIST_END===") + 18).trim() : "";
-
-  let sec = "mainboard";
-  for (const line of block.split("\n")) {
-    const t = line.trim();
-    if (/^side\s*board/i.test(t)) { sec = "sideboard"; continue; }
-    if (/^main\s*(board|deck)/i.test(t)) { sec = "mainboard"; continue; }
-    if (/^commander/i.test(t)) { sec = "commander"; continue; }
-    const m = t.match(/^(\d+)x?\s+(.+?)(?:\s*\/\/.*)?$/);
-    if (m) {
-      const qty = parseInt(m[1]);
-      const name = m[2].replace(/\s*[\[\(].*?[\]\)]\s*/g, "").trim();
-      if (sec === "commander") { res.commander = name; sec = "mainboard"; }
-      else res[sec].push({ qty, name });
-    }
-  }
-
-  if (after) { res.analysis = after; }
-  else {
-    let inA = false;
-    for (const l of text.split("\n")) {
-      const t = l.trim();
-      if (inA) { res.analysis += t + "\n"; continue; }
-      if (/^(analysis|strategy|game\s*plan|key syner|matchup|mulligan|pilot|how (to|this)|the deck|this deck)/i.test(t)) {
-        inA = true; res.analysis += t + "\n";
-      }
-    }
-  }
-  return res;
-}
-
-function hasDeck(text) {
-  let n = 0;
-  for (const l of text.split("\n")) if (/^\d+x?\s+[A-Z]/.test(l.trim())) n++;
-  return n >= 8;
-}
-
-function computeCurve(cards) {
-  const c = {};
-  cards.forEach(({ qty, cardData: d }) => {
-    if (!d || d.type_line?.includes("Land")) return;
-    const k = Math.min(d.cmc || 0, 7); c[k >= 7 ? "7+" : String(k)] = (c[k >= 7 ? "7+" : String(k)] || 0) + qty;
-  });
-  return c;
-}
-
-function computeTypes(cards) {
-  const t = {};
-  cards.forEach(({ qty, cardData: d }) => {
-    if (!d) return;
-    const tl = d.type_line || "";
-    let tp = "Other";
-    for (const x of ["Creature","Instant","Sorcery","Enchantment","Artifact","Planeswalker","Land"])
-      if (tl.includes(x)) { tp = x; break; }
-    t[tp] = (t[tp] || 0) + qty;
-  });
-  return t;
-}
-
-function manaColor(d) {
-  const c = d?.colors || d?.color_identity || [];
-  if (!c.length) return "#666";
-  if (c.length > 1) return "#c9a84c";
-  return { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A" }[c[0]] || "#666";
-}
 
 function deckColorIds(deck) {
   const s = new Set();
@@ -316,36 +244,204 @@ const TypeBars = ({ data }) => {
   );
 };
 
-const CardRow = ({ card, onHover }) => {
-  const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
+const ManaAnalytics = ({ data }) => {
+  const { pips, sources } = data;
+  const clr = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#888", Any: "#c9a84c" };
+  const keys = ["W", "U", "B", "R", "G", "C"];
+
   return (
-    <div
-      onMouseEnter={() => img && onHover(img)}
-      onMouseLeave={() => onHover(null)}
-      style={{
-        display: "flex", alignItems: "center", gap: 5, padding: "3px 6px",
-        borderRadius: 3, background: "#0c0c0c", cursor: "default",
-        borderLeft: `2px solid ${card.cardData ? manaColor(card.cardData) : "#1a1a1a"}`,
-      }}
-      onMouseOver={e => e.currentTarget.style.background = "#141414"}
-      onMouseOut={e => e.currentTarget.style.background = "#0c0c0c"}
-    >
-      <span style={{ color: "#c9a84c", fontFamily: "monospace", fontSize: 11, minWidth: 16 }}>{card.qty}</span>
-      <span style={{ color: "#bbb", fontSize: 12, flex: 1 }}>{card.name}</span>
-      {card.cardData && <span style={{ color: "#444", fontSize: 9 }}>{card.cardData.mana_cost?.replace(/[{}]/g, "")}</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {keys.filter(k => pips[k] > 0 || sources[k] > 0).map(k => {
+        const req = pips[k];
+        const src = sources[k] + sources.Any;
+        const diff = src - req;
+        const color = diff < 0 && req > 0 ? "#E05A50" : diff >= 0 && req > 0 ? "#4DB87A" : "#666";
+        return (
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: clr[k], display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontWeight: "bold", fontSize: 8 }}>{k}</div>
+            <div style={{ flex: 1, color: "#999" }}>Needs: <span style={{ color: "#ccc" }}>{req}</span></div>
+            <div style={{ flex: 1, color: "#999" }}>Sources: <span style={{ color: color, fontWeight: "bold" }}>{src}</span></div>
+          </div>
+        );
+      })}
+      {sources.Any > 0 && <div style={{ fontSize: 9, color: "#c9a84c", marginTop: 4, fontStyle: "italic" }}>Includes {sources.Any} 'Any Color' sources</div>}
+    </div>
+  );
+};
+
+const CardRow = ({ card, onHover, isEditMode, onUpdateQty }) => {
+  const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
+  const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease" }}
+      onMouseEnter={() => img && onHover(img)} onMouseLeave={() => onHover(null)}>
+      <div style={{ width: 18, fontSize: 10, color: "#777", fontWeight: 700 }}>{card.qty}x</div>
+      <div style={{ flex: 1, fontSize: 11, color: "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
+      <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+        {card.cardData?.mana_cost && <div style={{ fontSize: 9, color: "#555" }}>{card.cardData.mana_cost.replace(/[{}]/g, "")}</div>}
+        {isEditMode && (
+          <div style={{ display: "flex", gap: 3, marginLeft: 6 }}>
+            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, -1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>-</button>
+            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, 1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>+</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEW COMPONENTS FOR PHASE 3
+// ═══════════════════════════════════════════════════════════
+
+function SideboardGuide({ guide, onClear }) {
+  return (
+    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c33" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>AI SIDEBOARD GUIDE</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
+      </div>
+      <div style={{ fontSize: 12, color: "#aaa", fontFamily: "'Crimson Text', serif", lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 16 }}>
+        {guide.analysis}
+      </div>
+      {guide.matchups && guide.matchups.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {guide.matchups.map((m, i) => (
+            <div key={i} style={{ background: "#111", borderRadius: 6, padding: 10, borderLeft: "3px solid #c9a84c" }}>
+              <div style={{ color: "#c9a84c", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>VS {m.opponent}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: "#4DB87A", marginBottom: 3 }}>IN (+)</div>
+                  <div style={{ fontSize: 10, color: "#888" }}>{m.in || "None"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: "#E05A50", marginBottom: 3 }}>OUT (-)</div>
+                  <div style={{ fontSize: 10, color: "#888" }}>{m.out || "None"}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GoldfishStats({ data, onClear }) {
+  return (
+    <div style={{ marginTop: 20, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c22" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>MONTE CARLO STATS (1,000 runs)</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 9 }}>✕</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {[
+          ["Avg Lands T3", data.avgLandsTurn3],
+          ["Avg Lands T4", data.avgLandsTurn4],
+          ["T3 Play %", `${data.turn3PlayPct}%`],
+          ["Screw Chance", `${data.manaScrewPct}%`],
+        ].map(([l, v]) => (
+          <div key={l} style={{ background: "#111", padding: "6px 10px", borderRadius: 5, border: "1px solid #1a1a1a" }}>
+            <div style={{ fontSize: 9, color: "#555" }}>{l}</div>
+            <div style={{ fontSize: 13, color: l.includes("Screw") && parseInt(v) > 15 ? "#E05A50" : "#c9a84c", fontWeight: "bold" }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BudgetSuggestions({ data, onClear }) {
+  return (
+    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #4DB87A33" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#4DB87A", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>BUDGET / POWER ADVICE</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
+      </div>
+      <div style={{ fontSize: 12, color: "#aaa", fontFamily: "'Crimson Text', serif", lineHeight: 1.6, marginBottom: 16 }}>
+        {data.analysis}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {data.suggestions.map((s, i) => (
+          <div key={i} style={{ background: "#111", borderRadius: 6, padding: 10, borderLeft: "3px solid #4DB87A" }}>
+            <span style={{ fontSize: 12 }}><del style={{ color: "#666" }}>{s.original}</del> → <strong style={{ color: "#c9a84c" }}>{s.replacement}</strong></span>
+            <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>{s.reason}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MosaicView({ deck, onHover }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, padding: "10px 0" }}>
+      {deck.mainboard.map((c, i) => {
+        const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
+        return (
+          <div key={i} onMouseEnter={() => img && onHover(img)} onMouseLeave={() => onHover(null)}
+            style={{ position: "relative", aspectRatio: "0.717", borderRadius: 6, overflow: "hidden", background: "#111", border: "1px solid #222", transition: "transform 0.2s" }}
+            onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}>
+            {img ? <img src={img} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#444", textAlign: "center" }}>{c.name}</div>}
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, padding: "2px 4px", textAlign: "center" }}>{c.qty}x</div>
+          </div>
+        );
+      })}
     </div>
   );
 };
 
 // Full deck display widget
-function DeckDisplay({ deck, onHover, compact }) {
+function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize }) {
+  const [deck, setDeck] = useState(initialDeck);
+  const [testHand, setTestHand] = useState(null); // null = not testing, array = hand
+  const [testDeck, setTestDeck] = useState([]);   // remaining deck
+  const [mullCount, setMullCount] = useState(0);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [exportMode, setExportMode] = useState(null); // null, "text", "arena"
+  const [viewMode, setViewMode] = useState("list"); // "list" or "mosaic"
+  const [sbGuide, setSbGuide] = useState(null); // { analysis: "", matchups: [] }
+  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
+  const [goldfishData, setGoldfishData] = useState(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [budgetSuggestions, setBudgetSuggestions] = useState(null);
+  const [isBudgetizing, setIsBudgetizing] = useState(false);
+
+  // Sync internal deck state if the parent passes down a completely new deck object
+  useEffect(() => { setDeck(initialDeck); }, [initialDeck]);
+
   const curve = useMemo(() => computeCurve(deck.mainboard), [deck.mainboard]);
   const types = useMemo(() => computeTypes(deck.mainboard), [deck.mainboard]);
+  const manaInfo = useMemo(() => analyzeManaBase([...deck.mainboard, ...(deck.sideboard || [])]), [deck]);
+  const totalPrice = useMemo(() => computePrice([...deck.mainboard, ...(deck.sideboard || [])]), [deck]);
+
   const totalM = deck.mainboard.reduce((a, c) => a + c.qty, 0);
   const totalS = deck.sideboard.reduce((a, c) => a + c.qty, 0);
   const lands = deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).reduce((a, c) => a + c.qty, 0);
   const nl = deck.mainboard.filter(c => c.cardData && !c.cardData.type_line?.includes("Land"));
   const avg = nl.length ? (nl.reduce((a, c) => a + (c.cardData.cmc || 0) * c.qty, 0) / nl.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "—";
+
+  const handleUpdateQty = (cardName, delta) => {
+    setDeck(prevDeck => {
+      const newDeck = { ...prevDeck, mainboard: [...prevDeck.mainboard], sideboard: [...(prevDeck.sideboard || [])] };
+      // Look in mainboard first
+      let idx = newDeck.mainboard.findIndex(c => c.name === cardName);
+      if (idx !== -1) {
+        newDeck.mainboard[idx] = { ...newDeck.mainboard[idx], qty: newDeck.mainboard[idx].qty + delta };
+        if (newDeck.mainboard[idx].qty <= 0) newDeck.mainboard.splice(idx, 1);
+        return newDeck;
+      }
+      // Look in sideboard
+      idx = newDeck.sideboard.findIndex(c => c.name === cardName);
+      if (idx !== -1) {
+        newDeck.sideboard[idx] = { ...newDeck.sideboard[idx], qty: newDeck.sideboard[idx].qty + delta };
+        if (newDeck.sideboard[idx].qty <= 0) newDeck.sideboard.splice(idx, 1);
+        return newDeck;
+      }
+      return prevDeck;
+    });
+  };
 
   const groups = {};
   const order = ["Creature","Planeswalker","Instant","Sorcery","Enchantment","Artifact","Land","Other"];
@@ -360,40 +456,53 @@ function DeckDisplay({ deck, onHover, compact }) {
 
   return (
     <div style={{ background: "#090909", border: "1px solid #181818", borderRadius: 10, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-        {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["SB", totalS]].map(([l, v]) => (
-          <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : "#1a1a1a"}` }}>
-            <span style={{ fontSize: 9, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{l} </span>
-            <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
+            <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "#1a1a1a"}` }}>
+              <span style={{ fontSize: 9, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{l} </span>
+              <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+            </div>
+          ))}
+          {totalM >= 40 && lands === 0 && (
+            <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
+          )}
+          {totalM >= 40 && lands > 0 && lands < 20 && (
+            <span style={{ fontSize: 10, color: "#E05A50", fontStyle: "italic" }}>⚠ Low lands</span>
+          )}
+        </div>
+        {!compact && (
+          <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 5, border: "1px solid #1a1a1a", overflow: "hidden" }}>
+            <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", border: "none", background: viewMode === "list" ? "#c9a84c22" : "transparent", color: viewMode === "list" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>LIST</button>
+            <button onClick={() => setViewMode("mosaic")} style={{ padding: "4px 8px", border: "none", background: viewMode === "mosaic" ? "#c9a84c22" : "transparent", color: viewMode === "mosaic" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>MOSAIC</button>
           </div>
-        ))}
-        {totalM >= 40 && lands === 0 && (
-          <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
-        )}
-        {totalM >= 40 && lands > 0 && lands < 20 && (
-          <span style={{ fontSize: 10, color: "#E05A50", fontStyle: "italic" }}>⚠ Low lands</span>
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 200px", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20 }}>
         <div style={{ maxHeight: compact ? 300 : 520, overflowY: "auto" }}>
-          <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>MAINBOARD</div>
-          {order.filter(g => groups[g]).map(g => (
-            <div key={g} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 2, textTransform: "uppercase" }}>
-                {g}s ({groups[g].reduce((a, c) => a + c.qty, 0)})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {groups[g].map((c, i) => <CardRow key={i} card={c} onHover={onHover} />)}
-              </div>
-            </div>
-          ))}
-          {deck.sideboard.length > 0 && (
+          {viewMode === "mosaic" ? (
+            <MosaicView deck={deck} onHover={onHover} />
+          ) : (
             <>
-              <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, margin: "12px 0 6px", fontFamily: "'Cinzel', serif" }}>SIDEBOARD</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} />)}
-              </div>
+              {order.map(g => groups[g] && (
+                <div key={g} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 4, borderBottom: "1px solid #1a1a1a33", paddingBottom: 2, fontFamily: "'Cinzel', serif" }}>
+                    {g}s ({groups[g].reduce((a, c) => a + c.qty, 0)})
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {groups[g].map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} />)}
+                  </div>
+                </div>
+              ))}
+                {deck.sideboard.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, margin: "12px 0 6px", fontFamily: "'Cinzel', serif" }}>SIDEBOARD ({totalS})</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} />)}
+                    </div>
+                  </>
+                )}
             </>
           )}
         </div>
@@ -403,21 +512,182 @@ function DeckDisplay({ deck, onHover, compact }) {
             <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MANA CURVE</div>
             <CurveChart data={curve} />
           </div>
-          <div>
+          <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>TYPES</div>
             <TypeBars data={types} />
+          </div>
+          <div>
+            <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MANA BASE</div>
+            <ManaAnalytics data={manaInfo} />
           </div>
         </div>}
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        <button onClick={copyDeck} style={xBtn}>📋 Copy</button>
+      {sbGuide && <SideboardGuide guide={sbGuide} onClear={() => setSbGuide(null)} />}
+      {goldfishData && <GoldfishStats data={goldfishData} onClear={() => setGoldfishData(null)} />}
+      {budgetSuggestions && <BudgetSuggestions data={budgetSuggestions} onClear={() => setBudgetSuggestions(null)} />}
+
+      <div style={{ display: "flex", gap: 6, marginTop: 12, borderTop: "1px solid #1a1a1a", paddingTop: 12, position: "relative" }}>
+        {onSave && (
+          <button onClick={() => onSave(deck)} style={{ ...xBtn, background: "linear-gradient(135deg, #182a18, #101810)", borderColor: "#4DB87A33", color: "#4DB87A" }}>
+            💾 Save to Collection
+          </button>
+        )}
+        <button onClick={() => setIsEditMode(!isEditMode)} style={{ ...xBtn, background: isEditMode ? "#E05A5011" : "#0f0f0f", borderColor: isEditMode ? "#E05A5055" : "#1f1f1f", color: isEditMode ? "#E05A50" : "#777" }}>
+          ✏️ {isEditMode ? "Done Editing" : "Visual Edit"}
+        </button>
+
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setExportMode(exportMode ? null : "menu")} style={{ ...xBtn, background: exportMode ? "#1a1a1a" : "#0f0f0f" }}>
+            📤 Export
+          </button>
+
+          {exportMode === "menu" && (
+            <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, background: "#111", border: "1px solid #222", borderRadius: 6, padding: 6, display: "flex", flexDirection: "column", gap: 4, width: 140, zIndex: 50, animation: "fadeIn 0.15s ease", boxShadow: "0 10px 30px rgba(0,0,0,0.8)" }}>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "text")); setExportMode(null); }}
+                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#ccc" }}
+                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
+              >📋 Copy Text List</button>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "arena")); setExportMode(null); }}
+                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#4DA3D4" }}
+                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
+              >🎮 Copy for MTGA</button>
+              <div style={{ height: 1, background: "#222", margin: "2px 0" }} />
+              <button
+                onClick={() => {
+                  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([exportDeck(deck, "text")], { type: "text/plain" })); a.download = "deck.txt"; a.click(); setExportMode(null);
+                }}
+                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#ccc" }}
+                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
+              >💾 Download .txt</button>
+            </div>
+          )}
+        </div>
+
+        {onGenerateGuide && !sbGuide && (
+          <button
+            onClick={async () => {
+              setIsGeneratingGuide(true);
+              const res = await onGenerateGuide(deck);
+              if (res) setSbGuide(res);
+              setIsGeneratingGuide(false);
+            }}
+            disabled={isGeneratingGuide}
+            style={{ ...xBtn, background: "linear-gradient(135deg, #182a2a, #101818)", borderColor: "#4DA3D433", color: "#4DA3D4" }}
+          >
+            {isGeneratingGuide ? "⏳ Generating..." : "📑 Sideboard Guide"}
+          </button>
+        )}
+
+        <button
+          onClick={() => {
+            setIsSimulating(true);
+            setTimeout(() => {
+              const res = runGoldfishSim(deck.mainboard);
+              setGoldfishData(res);
+              setIsSimulating(false);
+            }, 600);
+          }}
+          disabled={isSimulating}
+          style={{ ...xBtn, background: goldfishData ? "#c9a84c11" : "#0f0f0f", color: goldfishData ? "#c9a84c" : "#777" }}
+        >
+          {isSimulating ? "⏳ Calculating..." : "📊 Stats"}
+        </button>
+
+        {onBudgetize && (
+          <button
+            onClick={async () => {
+              setIsBudgetizing(true);
+              const res = await onBudgetize(deck, totalPrice > 100 ? "budget" : "power");
+              if (res) setBudgetSuggestions(res);
+              setIsBudgetizing(false);
+            }}
+            disabled={isBudgetizing}
+            style={{ ...xBtn, color: "#4DB87A", borderColor: "#4DB87A33" }}
+          >
+            {isBudgetizing ? "⏳ Analyzing..." : totalPrice > 100 ? "💸 Budgetize" : "🚀 Power Up"}
+          </button>
+        )}
+
+        <div style={{ flex: 1 }} />
         <button onClick={() => {
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(new Blob([deckToText(deck)], { type: "text/plain" }));
-          a.download = "deck.txt"; a.click();
-        }} style={xBtn}>💾 Export</button>
+          const arr = generateDeckArray(deck.mainboard);
+          const shuffled = shuffleArray(arr);
+          setTestHand(drawHand(shuffled, 7));
+          setTestDeck(shuffled.slice(7));
+          setMullCount(0);
+        }} style={{ ...xBtn, background: "linear-gradient(135deg, #2a2218, #181210)", borderColor: "#c9a84c33", color: "#c9a84c" }}>
+          🃏 Test Hand
+        </button>
       </div>
+
+      {/* Test Hand Overlay */}
+      {testHand && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(5px)", zIndex: 1000,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          animation: "fadeIn 0.2s ease"
+        }}>
+          <div style={{ marginBottom: 30, textAlign: "center" }}>
+            <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c9a84c", fontSize: 24, letterSpacing: 2 }}>TEST HAND</h2>
+            {mullCount > 0 && <div style={{ color: "#E05A50", fontSize: 13, marginTop: 4 }}>Mulligan to {7 - mullCount}</div>}
+          </div>
+
+          <div style={{ display: "flex", gap: -40, flexWrap: "wrap", justifyContent: "center", maxWidth: "90%", perspective: 1000 }}>
+            {testHand.map((card, i) => {
+              const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
+              return (
+                <div key={card._uid || i} style={{
+                  margin: "0 -20px",
+                  transition: "transform 0.2s",
+                  cursor: "pointer",
+                  animation: `fadeIn 0.4s ease ${i * 0.1}s both`
+                }}
+                  onMouseOver={e => e.currentTarget.style.transform = "translateY(-20px) scale(1.05) rotateZ(0deg)"}
+                  onMouseOut={e => e.currentTarget.style.transform = `translateY(0) scale(1) rotateZ(${(i - testHand.length / 2) * 3}deg)`}
+                >
+                  {img ? (
+                    <img src={img} alt={card.name} style={{ width: 220, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }} />
+                  ) : (
+                    <div style={{ width: 220, height: 306, background: "#111", border: "1px solid #333", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, textAlign: "center" }}>
+                      {card.name}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", gap: 15, marginTop: 50 }}>
+            <button onClick={() => {
+              const newMull = mullCount + 1;
+              if (newMull >= 7) return; // Can't mulligan to 0
+              const arr = generateDeckArray(deck.mainboard);
+              const shuffled = shuffleArray(arr);
+              setTestHand(drawHand(shuffled, 7 - newMull));
+              setTestDeck(shuffled.slice(7 - newMull));
+              setMullCount(newMull);
+            }} style={{ ...xBtn, background: "#1a1a1a", padding: "10px 24px", fontSize: 13 }} disabled={mullCount >= 6}>
+              ♻️ Mulligan
+            </button>
+            <button onClick={() => {
+              const arr = generateDeckArray(deck.mainboard);
+              const shuffled = shuffleArray(arr);
+              setTestHand(drawHand(shuffled, 7));
+              setTestDeck(shuffled.slice(7));
+              setMullCount(0);
+            }} style={{ ...xBtn, background: "#1a1a1a", padding: "10px 24px", fontSize: 13 }}>
+              🃏 New Hand
+            </button>
+            <button onClick={() => setTestHand(null)} style={{ ...xBtn, background: "#8a2f2f33", borderColor: "#8a2f2f", color: "#E05A50", padding: "10px 24px", fontSize: 13 }}>
+              ✕ Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -495,16 +765,7 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
             {msg.content}
           </div>
         )}
-        {msg.deck && (
-          <div style={{ marginTop: 12 }}>
-            <DeckDisplay deck={msg.deck} onHover={onHover} />
-            {onSaveDeck && (
-              <button onClick={() => onSaveDeck(msg.deck)} style={{ ...xBtn, marginTop: 6, color: "#c9a84c", borderColor: "#c9a84c33" }}>
-                💎 Save to Vault
-              </button>
-            )}
-          </div>
-        )}
+        {msg.deck && <div style={{ marginTop: 12 }}><DeckDisplay deck={msg.deck} onHover={onHover} onSave={onSaveDeck} onGenerateGuide={msg.onGenerateGuide} /></div>}
       </div>
     </div>
   );
@@ -514,8 +775,112 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
 // AI AGENT — PRIMARY FEATURE
 // ═══════════════════════════════════════════════════════════
 
+const SB_GUIDE_SYSTEM = `You are Arcanum — the tactical MTG analyst.
+Generate a Sideboard Guide in JSON format for the provided deck against the current meta.
+Use the web_search tool to find the current top tier decks if you don't know them.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "2-3 sentence overview of sideboarding strategy",
+  "matchups": [
+    {
+      "opponent": "Deck Name",
+      "in": "Cards to bring in (quantities + names)",
+      "out": "Cards to take out (quantities + names)"
+    }
+  ]
+}`;
+
+const BUDGET_SYSTEM = `You are Arcanum — the MTG budget optimizer.
+Analyze the provided deck and suggest replacements for the 3-5 most expensive cards to make it more budget-friendly. 
+Alternatively, suggest 'Power Up' replacements if the user wants the most powerful version.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "Brief budget/power overview",
+  "suggestions": [
+    { "original": "Card Name", "replacement": "New Card Name", "reason": "Why this swap?" }
+  ]
+}`;
+
+async function runToolLoop(system, messages, providerCfg, onUpdateStatus) {
+  let resp;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) { onUpdateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
+    resp = await fetch("/api/chat", {
+      method: "POST", headers: getApiHeaders(providerCfg),
+      body: JSON.stringify({
+        max_tokens: 4000,
+        system,
+        tools: [{
+          name: "web_search",
+          description: "Search the web for the latest MTG metagame, tournament results, and deck prices.",
+          input_schema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "The search query." }
+            },
+            required: ["query"]
+          }
+        }],
+        messages
+      }),
+    });
+    if (resp.status !== 429) break;
+  }
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  let data = await resp.json();
+  let finalData = data;
+  let loopCount = 0;
+  const history = [...messages];
+
+  while (finalData.stop_reason === "tool_use" && loopCount < 5) {
+    loopCount++;
+    const toolUses = finalData.content.filter(b => b.type === "tool_use");
+    const searches = toolUses.filter(t => t.name === "web_search").map(t => t.input?.query || "");
+    if (searches.length) onUpdateStatus(`Searching: ${searches.join(", ")}...`);
+
+    history.push({ role: "assistant", content: finalData.content });
+
+    const toolResults = await Promise.all(toolUses.map(async tu => {
+      if (tu.name === "web_search") {
+        try {
+          const res = await fetch("/api/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Tavily-Key": providerCfg.tavilyKey || "" },
+            body: JSON.stringify({ query: tu.input.query })
+          });
+          const searchData = await res.json();
+          if (!res.ok) throw new Error(searchData.error || "Search failed");
+          return { type: "tool_result", tool_use_id: tu.id, content: searchData.content };
+        } catch (err) {
+          return { type: "tool_result", tool_use_id: tu.id, content: `Search Error: ${err.message}` };
+        }
+      }
+      return { type: "tool_result", tool_use_id: tu.id, content: "Tool not found." };
+    }));
+
+    history.push({ role: "user", content: toolResults });
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) { onUpdateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
+      resp = await fetch("/api/chat", {
+        method: "POST", headers: getApiHeaders(providerCfg),
+        body: JSON.stringify({ max_tokens: 4000, system, tools: [{ name: "web_search", description: "...", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } }], messages: history }),
+      });
+      if (resp.status !== 429) break;
+    }
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+    finalData = await resp.json();
+  }
+  return finalData;
+}
+
 function AIAgent({ onSaveDeck, providerCfg }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem("arcanum_chat_messages");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -523,7 +888,41 @@ function AIAgent({ onSaveDeck, providerCfg }) {
   const inputRef = useRef(null);
   const historyRef = useRef([]);
 
+  useEffect(() => {
+    const savedMsg = localStorage.getItem("arcanum_chat_messages");
+    if (savedMsg) setMessages(JSON.parse(savedMsg));
+
+    const savedHist = localStorage.getItem("arcanum_chat_history");
+    if (savedHist) historyRef.current = JSON.parse(savedHist);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("arcanum_chat_messages", JSON.stringify(messages));
+    localStorage.setItem("arcanum_chat_history", JSON.stringify(historyRef.current));
+  }, [messages]);
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const handleGenerateGuide = async (deck) => {
+    try {
+      const list = deckToText(deck);
+      const res = await runToolLoop(SB_GUIDE_SYSTEM, [{ role: "user", content: `Generate a sideboard guide for this deck:\n${list}` }], providerCfg, () => { });
+      const text = (res.content || []).map(b => b.text || "").join("");
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch { return null; }
+  };
+
+  const handleBudgetize = async (deck, mode = "budget") => {
+    try {
+      const list = deckToText(deck);
+      const prompt = mode === "budget" ? "Suggest budget replacements for this deck." : "Suggest 'Power Up' / high-end replacements for this deck.";
+      const res = await runToolLoop(BUDGET_SYSTEM, [{ role: "user", content: `${prompt}\n\nDECK:\n${list}` }], providerCfg, () => { });
+      const text = (res.content || []).map(b => b.text || "").join("");
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch { return null; }
+  };
 
   const enrichDeck = async (parsed, setStatus) => {
     const cache = {};
@@ -564,28 +963,116 @@ function AIAgent({ onSaveDeck, providerCfg }) {
         if (attempt > 0) { updateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
         resp = await fetch("/api/chat", {
           method: "POST", headers: getApiHeaders(providerCfg),
-          body: JSON.stringify({ max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
+          body: JSON.stringify({
+            max_tokens: 8000,
+            system: AGENT_SYSTEM,
+            tools: [{
+              name: "web_search",
+              description: "Search the web for the latest MTG metagame, tournament results, and deck prices.",
+              input_schema: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "The search query." }
+                },
+                required: ["query"]
+              }
+            }],
+            messages: historyRef.current
+          }),
         });
         if (resp.status !== 429) break;
       }
       if (!resp.ok) throw new Error(`API ${resp.status}`);
-      const data = await resp.json();
-      let fullText = (data.content || []).map(b => b.text || "").join("\n");
+      let data = await resp.json();
+
+      let finalData = data;
+      let allContent = [...(data.content || [])];
+      let loopCount = 0;
+
+      while (finalData.stop_reason === "tool_use" && loopCount < 5) {
+        loopCount++;
+        const toolUses = finalData.content.filter(b => b.type === "tool_use");
+        const searches = toolUses.filter(t => t.name === "web_search").map(t => t.input?.query || "");
+        if (searches.length) {
+          updateStatus(`Searching: ${searches.join(", ")}...`);
+        }
+
+        historyRef.current.push({ role: "assistant", content: finalData.content });
+
+        const toolResults = await Promise.all(toolUses.map(async tu => {
+          if (tu.name === "web_search") {
+            try {
+              const res = await fetch("/api/search", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Tavily-Key": providerCfg.tavilyKey || "" },
+                body: JSON.stringify({ query: tu.input.query })
+              });
+              const searchData = await res.json();
+              if (!res.ok) throw new Error(searchData.error || "Search failed");
+              return { type: "tool_result", tool_use_id: tu.id, content: searchData.content };
+            } catch (err) {
+              return { type: "tool_result", tool_use_id: tu.id, content: `Search Error: ${err.message}` };
+            }
+          }
+          return { type: "tool_result", tool_use_id: tu.id, content: "Tool not found." };
+        }));
+
+        historyRef.current.push({ role: "user", content: toolResults });
+
+        updateStatus("Processing search results and building strategy...");
+
+        const contResp = await fetch("/api/chat", {
+          method: "POST", headers: getApiHeaders(providerCfg),
+          body: JSON.stringify({
+            max_tokens: 8000,
+            system: AGENT_SYSTEM,
+            tools: [{
+              name: "web_search",
+              description: "Search the web for the latest MTG metagame, tournament results, and deck prices.",
+              input_schema: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "The search query." }
+                },
+                required: ["query"]
+              }
+            }],
+            messages: historyRef.current,
+          }),
+        });
+
+        if (!contResp.ok) break;
+        finalData = await contResp.json();
+        allContent = [...allContent, ...(finalData.content || [])];
+      }
+
+      let fullText = allContent.map(b => b.text || "").join("\n");
       historyRef.current.push({ role: "assistant", content: fullText });
       let deckObj = null, displayText = fullText;
-      if (hasDeck(fullText)) {
-        updateStatus("Decklist detected — loading card images from Scryfall...");
-        const parsed = parseDecklist(fullText);
-        const si = fullText.indexOf("===DECKLIST_START==="), ei = fullText.indexOf("===DECKLIST_END===");
-        if (si !== -1 && ei !== -1) displayText = (fullText.substring(0, si).trim() + "\n\n" + fullText.substring(ei + 18).trim()).trim();
-        else { displayText = fullText.split("\n").filter(l => !/^\d+x?\s+[A-Z]/.test(l.trim())).join("\n").replace(/^(Mainboard|Sideboard)\s*$/gm, "").trim(); }
-        deckObj = await enrichDeck(parsed, updateStatus);
+      // The original code had a complex way of extracting decklist text.
+      // The new code simplifies this by just using `text` and then `enrichDeck`.
+      // The provided diff seems to replace the entire deck processing logic.
+      // Let's assume `text` here refers to `fullText` from the previous line.
+      const text = fullText; // Aligning with the provided diff's `text` variable
+
+      if (hasDeck(text)) {
+        updateStatus("Identifying card types and technical specs...");
+        const parsed = parseDecklist(text);
+        const enriched = await enrichDeck(parsed, updateStatus);
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: text.replace(/===[\s\S]*?===/g, "").trim(), deck: enriched, onGenerateGuide: handleGenerateGuide } : m));
+      } else {
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: text } : m));
       }
-      setMessages(prev => prev.map(m => m._id === lid ? { role: "assistant", content: displayText.trim() || null, deck: deckObj } : m));
     } catch (err) {
+      // The original catch block was simpler, this one adds setErr
+      // Assuming setErr is defined in the component's scope (it's not in the provided snippet, but common pattern)
+      // For now, I'll keep the original catch block structure but adapt to the new message update.
       setMessages(prev => prev.map(m => m._id === lid ? { role: "assistant", content: `Something went wrong: ${err.message}. Try again.` } : m));
+      // If setErr was meant to be used, it would need to be defined, e.g., const [err, setErr] = useState(null);
+      // For now, I'll omit setErr as it's not in the original component's state.
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   };
 
   return (
@@ -726,7 +1213,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
           <button onClick={() => {setPhase("cfg");setDeck(null);}} style={xBtn}>← Rebuild</button>
         </div>
       </div>
-      <DeckDisplay deck={deck} onHover={setHov} />
+      <DeckDisplay deck={deck} onHover={setHov} onSave={onSaveDeck} onGenerateGuide={handleGenerateGuide} onBudgetize={handleBudgetize} />
       {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
       {deck.analysis && <div style={{ marginTop: 14, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #1a1a1a" }}>
         <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>ANALYSIS</div>
@@ -747,7 +1234,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
 
   const sl = { fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" };
   const chip = (active) => ({ padding: "6px 12px", borderRadius: 5, border: `1px solid ${active?"#c9a84c44":"#1a1a1a"}`, cursor: "pointer", fontSize: 11, fontFamily: "'Cinzel', serif", background: active?"#c9a84c10":"#0d0d0d", color: active?"#c9a84c":"#666", transition: "all 0.2s" });
-  const ta = { width: "100%", minHeight: 50, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 5, padding: 8, color: "#999", fontSize: 11, fontFamily: "'Crimson Text', serif", resize: "vertical" };
+  const ta = { width: "100%", minHeight: 50, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 5, padding: "8px 12px", color: "#999", fontSize: 11, fontFamily: "'Crimson Text', serif", resize: "vertical" };
 
   return (
     <div style={{ padding: "8px 0", animation: "fadeIn 0.4s" }}>
@@ -1354,6 +1841,26 @@ function SettingsModal({ config, setConfig, onClose }) {
           </div>
         )}
 
+        {/* Real-Time Search Key */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={label}>TAVILY SEARCH API KEY (Optional, enables live web search)</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <input
+                type={"password"}
+                value={localCfg.tavilyKey || ""}
+                onChange={e => setLocalCfg(prev => ({ ...prev, tavilyKey: e.target.value }))}
+                placeholder={`tvly-...`}
+                style={inp}
+              />
+            </div>
+          </div>
+          <a href="https://tavily.com/" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 10, color: "#4DA3D4", textDecoration: "none", marginTop: 4, display: "inline-block" }}>
+            → Get a free Tavily API key (1,000 requests/mo)
+          </a>
+        </div>
+
         {/* Model selection */}
         {provider.models.length > 1 && (
           <div style={{ marginBottom: 18 }}>
@@ -1417,25 +1924,39 @@ export default function MTGDeckArchitect() {
   const [saveName, setSaveName] = useState("");
   const [providerCfg, setProviderCfg] = useState(loadProviderConfig());
   const [showSettings, setShowSettings] = useState(false);
+  const [compareIds, setCompareIds] = useState([]); // Array of 2 IDs
   const activeProvider = AI_PROVIDERS.find(p => p.id === providerCfg.providerId) || AI_PROVIDERS[0];
 
-  const handleSaveDeck = (deck) => {
-    setSaveModal(deck);
+  const handleSaveDeck = (deck, existingId = null) => {
+    setSaveModal({ ...deck, _existingId: existingId });
     const colors = deckColorIds(deck);
     const colorNames = colors.map(c => COLORS.find(x => x.id === c)?.name || "").join("/");
-    setSaveName(colorNames ? `${colorNames} Deck` : "New Deck");
+
+    if (existingId) {
+      const existing = vault.find(d => d.id === existingId);
+      setSaveName(existing?.name || (colorNames ? `${colorNames} Deck` : "New Deck"));
+    } else {
+      setSaveName(colorNames ? `${colorNames} Deck` : "New Deck");
+    }
   };
 
   const confirmSave = () => {
     if (!saveModal || !saveName.trim()) return;
     const entry = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+      id: saveModal._existingId || (Date.now().toString(36) + Math.random().toString(36).substr(2, 5)),
       name: saveName.trim(),
       deck: serializeDeck(saveModal),
       format: "Modern",
       savedAt: new Date().toISOString(),
     };
-    const nv = [...vault, entry];
+
+    let nv;
+    if (saveModal._existingId) {
+      nv = vault.map(d => d.id === saveModal._existingId ? entry : d);
+    } else {
+      nv = [...vault, entry];
+    }
+
     setVault(nv); saveVault(nv);
     setSaveModal(null); setSaveName("");
   };
@@ -1469,6 +1990,7 @@ export default function MTGDeckArchitect() {
               { id: "agent", label: "✦ AI Agent" },
               { id: "builder", label: "⚙ Guided" },
               { id: "arena", label: `⚔ Arena${vault.length ? ` (${vault.length})` : ""}` },
+              { id: "collection", label: `Deck Collection` },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
                 padding: "7px 16px", border: "none", cursor: "pointer",
@@ -1500,6 +2022,82 @@ export default function MTGDeckArchitect() {
         {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
         {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
         {tab === "arena" && <Arena vault={vault} setVault={setVault} providerCfg={providerCfg} />}
+        {tab === "collection" && (
+          <div style={{ padding: 20 }}>
+            {compareIds.length === 2 ? (
+              <div style={{ animation: "fadeIn 0.3s ease" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <h2 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c" }}>⚔ DECK COMPARISON</h2>
+                  <button onClick={() => setCompareIds([])} style={xBtn}>← Back to Vault</button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 30 }}>
+                  {compareIds.map(id => {
+                    const d = vault.find(x => x.id === id);
+                    return (
+                      <div key={id}>
+                        <div style={{ fontSize: 14, color: "#c9a84c", fontFamily: "'Cinzel', serif", marginBottom: 10, textAlign: "center" }}>{d.name}</div>
+                        <DeckDisplay deck={parseDecklist(d.deck)} compact={true} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <div style={{ color: "#666", fontSize: 11, fontFamily: "'Cinzel', serif" }}>{vault.length} DECKS IN THE VAULT</div>
+                  {compareIds.length === 1 && <div style={{ color: "#c9a84c", fontSize: 11, animation: "pulse 1.5s infinite" }}>Select one more deck to compare...</div>}
+                </div>
+                {vault.length === 0 ? (
+                  <div style={{ textAlign: "center", color: "#666", padding: 40, fontFamily: "'Cinzel', serif" }}>NO DECKS SAVED TO THE VAULT</div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+                    {[...vault].reverse().map((d, i) => {
+                      const isSelected = compareIds.includes(d.id);
+                      return (
+                        <div key={d.id || i} style={{ position: "relative" }}>
+                          <div
+                            onClick={() => {
+                              if (isSelected) setCompareIds(compareIds.filter(id => id !== d.id));
+                              else if (compareIds.length < 2) setCompareIds([...compareIds, d.id]);
+                            }}
+                            style={{
+                              background: "#0d0d0d",
+                              border: isSelected ? "1px solid #c9a84c" : "1px solid #1a1a1a",
+                              borderRadius: 10, padding: 14, cursor: "pointer", transition: "all 0.2s",
+                              boxShadow: isSelected ? "0 0 15px rgba(201, 168, 76, 0.1)" : "none"
+                            }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <div style={{ fontSize: 16, color: isSelected ? "#c9a84c" : "#888", fontFamily: "'Cinzel', serif", marginBottom: 2 }}>{d.name}</div>
+                                <div style={{ fontSize: 10, color: "#666", marginBottom: 12 }}>{new Date(d.savedAt).toLocaleDateString()}</div>
+                              </div>
+                              <div style={{
+                                width: 14, height: 14, borderRadius: "50%", border: "1px solid #333",
+                                background: isSelected ? "#c9a84c" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#000"
+                              }}>
+                                {isSelected && "✓"}
+                              </div>
+                            </div>
+                            <div style={{ pointerEvents: "none", opacity: isSelected ? 1 : 0.6 }}>
+                              <DeckDisplay deck={parseDecklist(d.deck)} compact={true} />
+                            </div>
+                            <button onClick={(e) => {
+                              e.stopPropagation();
+                              const nv = vault.filter(x => x.id !== d.id);
+                              setVault(nv); saveVault(nv);
+                              setCompareIds(compareIds.filter(id => id !== d.id));
+                            }} style={{ position: "absolute", bottom: 14, right: 14, background: "none", border: "none", color: "#E05A50", cursor: "pointer", fontSize: 14 }}>✕ Remove</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Settings Modal */}
