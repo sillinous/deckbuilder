@@ -67,7 +67,7 @@ export default async (req, context) => {
       }
     }
 
-    // -- Call Groq --
+    // -- Call Groq with retry on rate limit --
     const groqBody = {
       model: "llama-3.3-70b-versatile",
       max_tokens: Math.min(body.max_tokens || 4096, 8000),
@@ -75,23 +75,48 @@ export default async (req, context) => {
       messages: openaiMessages,
     };
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(groqBody),
-    });
+    let response, data;
+    const maxRetries = 4;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(groqBody),
+      });
 
-    const data = await response.json();
+      if (response.status === 429 && attempt < maxRetries) {
+        // Exponential backoff: 2s, 5s, 12s, 30s
+        const retryAfter = response.headers.get("retry-after");
+        const waitMs = retryAfter
+          ? Math.min(parseInt(retryAfter) * 1000, 60000)
+          : Math.min(2000 * Math.pow(2.5, attempt), 60000);
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+      break;
+    }
+
+    data = await response.json();
 
     if (!response.ok) {
+      const errMsg = response.status === 429
+        ? "Rate limited by Groq — retries exhausted. Wait 30-60 seconds and try again."
+        : (data.error?.message || JSON.stringify(data));
       return new Response(JSON.stringify({
         type: "error",
-        error: { type: "api_error", message: data.error?.message || JSON.stringify(data) },
+        error: { type: "api_error", message: errMsg },
       }), { status: response.status, headers: corsHeaders });
     }
+
+    // Forward rate limit info
+    const rlHeaders = { ...corsHeaders };
+    const remaining = response.headers.get("x-ratelimit-remaining-requests");
+    const resetMs = response.headers.get("x-ratelimit-reset-requests");
+    if (remaining) rlHeaders["X-RateLimit-Remaining"] = remaining;
+    if (resetMs) rlHeaders["X-RateLimit-Reset"] = resetMs;
 
     // -- Transform OpenAI response -> Anthropic format --
     const choice = data.choices?.[0];
@@ -111,7 +136,7 @@ export default async (req, context) => {
     };
 
     return new Response(JSON.stringify(anthropicResponse), {
-      status: 200, headers: corsHeaders,
+      status: 200, headers: rlHeaders,
     });
 
   } catch (err) {

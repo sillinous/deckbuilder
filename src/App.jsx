@@ -499,10 +499,15 @@ function AIAgent({ onSaveDeck }) {
     try {
       historyRef.current.push({ role: "user", content: text.trim() });
       updateStatus("Consulting card database and metagame data...");
-      const resp = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
-      });
+      let resp;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) { updateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
+        resp = await fetch("/api/chat", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
+        });
+        if (resp.status !== 429) break;
+      }
       if (!resp.ok) throw new Error(`API ${resp.status}`);
       const data = await resp.json();
       let fullText = (data.content || []).map(b => b.text || "").join("\n");
@@ -616,9 +621,7 @@ function GuidedBuilder({ onSaveDeck }) {
       setStatus("AI constructing decklist..."); log("Sending to AI...");
       const tops = cards.slice(0,200).map(c => `${c.name} | ${c.mana_cost||""} | ${c.type_line} | ${(c.oracle_text||"").substring(0,100)}`).join("\n");
       const cn = cfg.colors.map(c => COLORS.find(x => x.id===c)?.name).join("/")||"Colorless";
-      const resp = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Deck size: EXACTLY ${fmt.deckSize} cards total.${fmt.sb?` Sideboard: EXACTLY ${fmt.sb} cards.`:""}
+      const buildBody = JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Deck size: EXACTLY ${fmt.deckSize} cards total.${fmt.sb?` Sideboard: EXACTLY ${fmt.sb} cards.`:""}
 
 CRITICAL REQUIREMENTS:
 1. The deck MUST include ALL card types: Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, AND Lands
@@ -629,8 +632,13 @@ CRITICAL REQUIREMENTS:
 6. Count carefully: spells + lands = EXACTLY ${fmt.deckSize}
 7. A decklist without lands is INCOMPLETE and INVALID
 
-Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, Lands). Then provide strategic analysis.`, messages: [{ role: "user", content: `Build it.${cfg.strat?` Strategy: ${cfg.strat}`:""}${cfg.meta?` Beat: ${cfg.meta}`:""}${cfg.cmdr?` Commander: ${cfg.cmdr}`:""}\n\nAvailable cards (use these AND any other legal cards including lands):\n${tops}` }] }),
-      });
+Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, Lands). Then provide strategic analysis.`, messages: [{ role: "user", content: `Build it.${cfg.strat?` Strategy: ${cfg.strat}`:""}${cfg.meta?` Beat: ${cfg.meta}`:""}${cfg.cmdr?` Commander: ${cfg.cmdr}`:""}\n\nAvailable cards (use these AND any other legal cards including lands):\n${tops}` }] });
+      let resp;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) { log(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
+        resp = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: buildBody });
+        if (resp.status !== 429) break;
+      }
       if (!resp.ok) throw new Error(`API ${resp.status}`);
       const data = await resp.json(); const text = data.content.map(b => b.text||"").join("\n");
       log("Parsing..."); const parsed = parseDecklist(text); log(`${parsed.mainboard.length}+${parsed.sideboard.length} entries`);
@@ -793,14 +801,27 @@ ${listB}
 
 Simulate exactly ${bestOf === 1 ? "1 game" : `a Best-of-${bestOf} series (stop when one deck reaches ${Math.ceil(bestOf/2)} wins)`}. Use "Deck A" and "Deck B" as winner names. Consider sideboarding for games 2+. Be realistic with variance.`;
 
-          const resp = await fetch("/api/chat", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "x", max_tokens: 2000, system: SIM_SYSTEM, messages: [{ role: "user", content: prompt }] }),
-          });
+          // Retry with backoff on rate limits
+          let resp, data, text;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            if (attempt > 0) {
+              const wait = 3000 * Math.pow(2, attempt);
+              log(`  ⏳ Rate limited — retrying in ${wait/1000}s (attempt ${attempt+1}/3)`, "warn");
+              await new Promise(r => setTimeout(r, wait));
+            }
+            resp = await fetch("/api/chat", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "x", max_tokens: 2000, system: SIM_SYSTEM, messages: [{ role: "user", content: prompt }] }),
+            });
+            if (resp.status !== 429) break;
+          }
 
           if (!resp.ok) throw new Error(`API ${resp.status}`);
-          const data = await resp.json();
-          const text = (data.content || []).map(b => b.text || "").join("");
+          data = await resp.json();
+          text = (data.content || []).map(b => b.text || "").join("");
+
+          // Throttle: wait between API calls to stay under rate limit
+          await new Promise(r => setTimeout(r, 2500));
 
           // Parse JSON from response
           let matchData;
@@ -860,12 +881,15 @@ Simulate exactly ${bestOf === 1 ? "1 game" : `a Best-of-${bestOf} series (stop w
     }).join("\n\n");
 
     try {
-      const resp = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "x", max_tokens: 3000,
-          system: "You are Arcanum — the world's most elite MTG analyst. You provide tournament-level post-event analysis with strong opinions and actionable insights.",
-          messages: [{ role: "user", content: `Provide a comprehensive post-tournament analysis for this simulated event.
+      let resp;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt)));
+        resp = await fetch("/api/chat", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "x", max_tokens: 3000,
+            system: "You are Arcanum — the world's most elite MTG analyst. You provide tournament-level post-event analysis with strong opinions and actionable insights.",
+            messages: [{ role: "user", content: `Provide a comprehensive post-tournament analysis for this simulated event.
 
 MATCH RESULTS:
 ${summary}
@@ -881,8 +905,10 @@ Provide:
 5. PREDICTION — if these decks played a 100-match round-robin, what would the final standings look like?
 
 Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
-        }),
-      });
+          }),
+        });
+        if (resp.status !== 429) break;
+      }
 
       if (!resp.ok) throw new Error(`API ${resp.status}`);
       const data = await resp.json();
