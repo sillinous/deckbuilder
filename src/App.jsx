@@ -2036,7 +2036,7 @@ export default function MTGDeckArchitect() {
                     return (
                       <div key={id}>
                         <div style={{ fontSize: 14, color: "#c9a84c", fontFamily: "'Cinzel', serif", marginBottom: 10, textAlign: "center" }}>{d.name}</div>
-                        <DeckDisplay deck={parseDecklist(d.deck)} compact={true} />
+                        <DeckDisplay deck={d.deck} compact={true} />
                       </div>
                     );
                   })}
@@ -2080,7 +2080,7 @@ export default function MTGDeckArchitect() {
                               </div>
                             </div>
                             <div style={{ pointerEvents: "none", opacity: isSelected ? 1 : 0.6 }}>
-                              <DeckDisplay deck={parseDecklist(d.deck)} compact={true} />
+                              <DeckDisplay deck={d.deck} compact={true} />
                             </div>
                             <button onClick={(e) => {
                               e.stopPropagation();
