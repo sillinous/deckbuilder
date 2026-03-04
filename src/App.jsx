@@ -564,7 +564,7 @@ function AIAgent({ onSaveDeck, providerCfg }) {
         if (attempt > 0) { updateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
         resp = await fetch("/api/chat", {
           method: "POST", headers: getApiHeaders(providerCfg),
-          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
+          body: JSON.stringify({ max_tokens: 8000, system: AGENT_SYSTEM, messages: historyRef.current }),
         });
         if (resp.status !== 429) break;
       }
@@ -681,7 +681,7 @@ function GuidedBuilder({ onSaveDeck, providerCfg }) {
       setStatus("AI constructing decklist..."); log("Sending to AI...");
       const tops = cards.slice(0,200).map(c => `${c.name} | ${c.mana_cost||""} | ${c.type_line} | ${(c.oracle_text||"").substring(0,100)}`).join("\n");
       const cn = cfg.colors.map(c => COLORS.find(x => x.id===c)?.name).join("/")||"Colorless";
-      const buildBody = JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Deck size: EXACTLY ${fmt.deckSize} cards total.${fmt.sb?` Sideboard: EXACTLY ${fmt.sb} cards.`:""}
+      const buildBody = JSON.stringify({ max_tokens: 4096, system: `Build a tournament-competitive ${cfg.format} ${cfg.arch} deck in ${cn}. Deck size: EXACTLY ${fmt.deckSize} cards total.${fmt.sb?` Sideboard: EXACTLY ${fmt.sb} cards.`:""}
 
 CRITICAL REQUIREMENTS:
 1. The deck MUST include ALL card types: Creatures, Instants, Sorceries, Enchantments, Artifacts, Planeswalkers, AND Lands
