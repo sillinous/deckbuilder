@@ -212,7 +212,7 @@ export async function runToolLoop(system, messages, providerCfg, onUpdateStatus)
             headers: { "Content-Type": "application/json", "X-Tavily-Key": providerCfg.tavilyKey || "" },
             body: JSON.stringify({ query: tu.input.query })
           });
-          const searchData = await r.json();
+          const searchData = await res.json();
           if (!res.ok) throw new Error(searchData.error || "Search failed");
           return { type: "tool_result", tool_use_id: tu.id, content: searchData.content };
         } catch (err) {
