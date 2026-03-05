@@ -267,6 +267,54 @@ function serializeDeck(deck) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════
+// SHARED AI HELPERS
+// ═══════════════════════════════════════════════════════════
+
+async function aiGenerateGuide(deck, providerCfg) {
+  try {
+    const list = deckToText(deck);
+    const res = await runToolLoop(SB_GUIDE_SYSTEM, [{ role: "user", content: `Generate a sideboard guide for this deck:\n${list}` }], providerCfg, () => { });
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+  } catch { return null; }
+}
+
+async function aiBudgetize(deck, providerCfg, mode = "budget") {
+  try {
+    const list = deckToText(deck);
+    const totalPrice = computePrice([...deck.mainboard, ...(deck.sideboard || [])]);
+    const prompt = (mode === "budget" || totalPrice > 100) ? "Suggest budget replacements for this deck." : "Suggest 'Power Up' / high-end replacements for this deck.";
+    const res = await runToolLoop(BUDGET_SYSTEM, [{ role: "user", content: `${prompt}\n\nDECK:\n${list}` }], providerCfg, () => { });
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+  } catch { return null; }
+}
+
+async function aiEnrichDeck(parsed, setStatus) {
+  const cache = {};
+  const all = [...parsed.mainboard, ...parsed.sideboard];
+  let done = 0;
+  for (const entry of all) {
+    const k = entry.name.toLowerCase();
+    if (cache[k]) { entry.cardData = cache[k]; done++; continue; }
+    try {
+      const cd = await sfNamed(entry.name);
+      if (cd) { cache[k] = cd; entry.cardData = cd; }
+      done++;
+      if (done % 10 === 0) setStatus(`Loading card data (${done}/${all.length})...`);
+      await new Promise(r => setTimeout(r, 65));
+    } catch { done++; }
+  }
+  return {
+    mainboard: parsed.mainboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
+    sideboard: parsed.sideboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
+    commander: parsed.commander, analysis: parsed.analysis,
+  };
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // SHARED UI COMPONENTS
@@ -923,60 +971,19 @@ function AIAgent({ onSaveDeck, providerCfg }) {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const handleGenerateGuide = async (deck) => {
-    try {
-      const list = deckToText(deck);
-      const res = await runToolLoop(SB_GUIDE_SYSTEM, [{ role: "user", content: `Generate a sideboard guide for this deck:\n${list}` }], providerCfg, () => { });
-      const text = (res.content || []).map(b => b.text || "").join("");
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-    } catch { return null; }
-  };
+  const handleGenerateGuide = (deck) => aiGenerateGuide(deck, providerCfg);
+  const handleBudgetize = (deck, mode) => aiBudgetize(deck, providerCfg, mode);
 
-  const handleBudgetize = async (deck, mode = "budget") => {
-    try {
-      const list = deckToText(deck);
-      const prompt = mode === "budget" ? "Suggest budget replacements for this deck." : "Suggest 'Power Up' / high-end replacements for this deck.";
-      const res = await runToolLoop(BUDGET_SYSTEM, [{ role: "user", content: `${prompt}\n\nDECK:\n${list}` }], providerCfg, () => { });
-      const text = (res.content || []).map(b => b.text || "").join("");
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-    } catch { return null; }
-  };
-
-  const enrichDeck = async (parsed, setStatus) => {
-    const cache = {};
-    const all = [...parsed.mainboard, ...parsed.sideboard];
-    let done = 0;
-    for (const entry of all) {
-      const k = entry.name.toLowerCase();
-      if (cache[k]) { entry.cardData = cache[k]; done++; continue; }
-      // Fetch ALL cards from Scryfall including basic lands (for proper images)
-      try {
-        const cd = await sfNamed(entry.name);
-        if (cd) { cache[k] = cd; entry.cardData = cd; }
-        done++;
-        if (done % 10 === 0) setStatus(`Loading card data (${done}/${all.length})...`);
-        await new Promise(r => setTimeout(r, 65));
-      } catch { done++; }
-    }
-    return {
-      mainboard: parsed.mainboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
-      sideboard: parsed.sideboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
-      commander: parsed.commander, analysis: parsed.analysis,
-    };
-  };
-
-  const send = async (text) => {
-    if (!text.trim() || busy) return;
-    setMessages(prev => [...prev, { role: "user", content: text.trim() }]);
+  const send = async (inputText) => {
+    if (!inputText.trim() || busy) return;
+    setMessages(prev => [...prev, { role: "user", content: inputText.trim() }]);
     setInput(""); setBusy(true);
     const lid = Date.now();
     setMessages(prev => [...prev, { role: "assistant", loading: true, status: "Analyzing the format and searching for optimal strategies...", _id: lid }]);
     const updateStatus = (s) => setMessages(prev => prev.map(m => m._id === lid ? { ...m, status: s } : m));
 
     try {
-      historyRef.current.push({ role: "user", content: text.trim() });
+      historyRef.current.push({ role: "user", content: inputText.trim() });
       updateStatus("Consulting card database and metagame data...");
       let resp;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -1022,13 +1029,13 @@ function AIAgent({ onSaveDeck, providerCfg }) {
         const toolResults = await Promise.all(toolUses.map(async tu => {
           if (tu.name === "web_search") {
             try {
-              const res = await fetch("/api/search", {
+              const searchRes = await fetch("/api/search", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-Tavily-Key": providerCfg.tavilyKey || "" },
                 body: JSON.stringify({ query: tu.input.query })
               });
-              const searchData = await res.json();
-              if (!res.ok) throw new Error(searchData.error || "Search failed");
+              const searchData = await searchRes.json();
+              if (!searchRes.ok) throw new Error(searchData.error || "Search failed");
               return { type: "tool_result", tool_use_id: tu.id, content: searchData.content };
             } catch (err) {
               return { type: "tool_result", tool_use_id: tu.id, content: `Search Error: ${err.message}` };
@@ -1069,27 +1076,20 @@ function AIAgent({ onSaveDeck, providerCfg }) {
       let fullText = allContent.map(b => b.text || "").join("\n");
       historyRef.current.push({ role: "assistant", content: fullText });
       let deckObj = null, displayText = fullText;
-      // The original code had a complex way of extracting decklist text.
-      // The new code simplifies this by just using `text` and then `enrichDeck`.
-      // The provided diff seems to replace the entire deck processing logic.
-      // Let's assume `text` here refers to `fullText` from the previous line.
-      const text = fullText; // Aligning with the provided diff's `text` variable
+      const decklistText = fullText;
 
-      if (hasDeck(text)) {
+      if (hasDeck(decklistText)) {
         updateStatus("Identifying card types and technical specs...");
-        const parsed = parseDecklist(text);
-        const enriched = await enrichDeck(parsed, updateStatus);
-        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: text.replace(/===[\s\S]*?===/g, "").trim(), deck: enriched, onGenerateGuide: handleGenerateGuide } : m));
+        const parsed = parseDecklist(decklistText);
+        updateStatus("Fetching high-res card art...");
+        const enriched = await aiEnrichDeck(parsed, updateStatus);
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: fullText.replace(/===[\s\S]*?===/g, "").trim(), deck: enriched, onGenerateGuide: handleGenerateGuide } : m));
       } else {
-        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: text } : m));
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: fullText } : m));
       }
     } catch (err) {
-      // The original catch block was simpler, this one adds setErr
-      // Assuming setErr is defined in the component's scope (it's not in the provided snippet, but common pattern)
-      // For now, I'll keep the original catch block structure but adapt to the new message update.
+      console.error(err);
       setMessages(prev => prev.map(m => m._id === lid ? { role: "assistant", content: `Something went wrong: ${err.message}. Try again.` } : m));
-      // If setErr was meant to be used, it would need to be defined, e.g., const [err, setErr] = useState(null);
-      // For now, I'll omit setErr as it's not in the original component's state.
     } finally {
       setBusy(false);
     }
@@ -1147,8 +1147,8 @@ function GuidedBuilder({ onSaveDeck, providerCfg }) {
   const [err, setErr] = useState(null);
   const [hov, setHov] = useState(null);
   const logRef = useRef(null);
-  const log = useCallback(m => setLogs(p => [...p, { t: new Date().toLocaleTimeString(), m }]), []);
-  useEffect(() => { logRef.current && (logRef.current.scrollTop = logRef.current.scrollHeight); }, [logs]);
+  const handleGenerateGuide = (deck) => aiGenerateGuide(deck, providerCfg);
+  const handleBudgetize = (deck, mode) => aiBudgetize(deck, providerCfg, mode);
 
   const build = async () => {
     setPhase("build"); setErr(null); setLogs([]);
