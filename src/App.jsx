@@ -66,23 +66,31 @@ async function aiBudgetize(deck, providerCfg, mode = "budget") {
 
 async function aiEnrichDeck(parsed, setStatus) {
   const cache = {};
-  const all = [...parsed.mainboard, ...parsed.sideboard];
+  const all = [...parsed.mainboard, ...parsed.sideboard, ...(parsed.commander || [])];
   let done = 0;
   for (const entry of all) {
     const k = entry.name.toLowerCase();
-    if (cache[k]) { entry.cardData = cache[k]; done++; continue; }
+    if (cache[k]) {
+      entry.cardData = cache[k];
+      done++;
+      setStatus(`Loading card data (${done}/${all.length})...`);
+      continue;
+    }
     try {
       const cd = await sfNamed(entry.name);
       if (cd) { cache[k] = cd; entry.cardData = cd; }
-      done++;
-      if (done % 10 === 0) setStatus(`Loading card data (${done}/${all.length})...`);
-      await new Promise(r => setTimeout(r, 65));
-    } catch { done++; }
+    } catch (e) {
+      console.error(`Failed to load ${entry.name}:`, e);
+    }
+    done++;
+    setStatus(`Loading card data (${done}/${all.length})...`);
+    await new Promise(r => setTimeout(r, 65));
   }
   return {
     mainboard: parsed.mainboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
     sideboard: parsed.sideboard.map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
-    commander: parsed.commander, analysis: parsed.analysis,
+    commander: (parsed.commander || []).map(e => ({ ...e, cardData: e.cardData || cache[e.name.toLowerCase()] || null })),
+    analysis: parsed.analysis,
   };
 }
 

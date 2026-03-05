@@ -38,9 +38,9 @@ export function hasDeck(text) {
   return text.includes("===DECKLIST_START===") || text.includes("Mainboard");
 }
 
-export function computeCurve(deck) {
+export function computeCurve(cards) {
   const curve = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7+": 0 };
-  deck.mainboard.forEach(c => {
+  cards.forEach(c => {
     if (!c.cardData || c.cardData.type_line?.includes("Land")) return;
     const cmc = Math.floor(c.cardData.cmc || 0);
     const k = cmc >= 7 ? "7+" : cmc.toString();
@@ -49,11 +49,19 @@ export function computeCurve(deck) {
   return curve;
 }
 
-export function computeTypes(deck) {
-  const t = {};
-  deck.mainboard.forEach(c => {
-    const type = (c.cardData?.type_line || "Unknown").split("—")[0].trim().split(" ").pop();
-    t[type] = (t[type] || 0) + c.qty;
+export function computeTypes(cards) {
+  const t = { Creature: 0, Instant: 0, Sorcery: 0, Enchantment: 0, Artifact: 0, Planeswalker: 0, Land: 0, Other: 0 };
+  cards.forEach(c => {
+    const tl = c.cardData?.type_line || "Other";
+    let found = false;
+    for (const type of Object.keys(t)) {
+      if (tl.includes(type)) {
+        t[type] += c.qty;
+        found = true;
+        break;
+      }
+    }
+    if (!found) t.Other += c.qty;
   });
   return t;
 }
@@ -64,13 +72,39 @@ export function computePrice(cards) {
   return cards.reduce((s, c) => s + (parseFloat(c.cardData?.prices?.usd || 0) * c.qty), 0);
 }
 
-export function analyzeManaBase(deck) {
-  const lands = deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).reduce((s, c) => s + c.qty, 0);
-  const sources = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-  deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).forEach(c => {
-    (c.cardData?.color_identity || []).forEach(clr => { if (sources[clr] !== undefined) sources[clr] += c.qty; });
+export function analyzeManaBase(cards) {
+  const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+  const sources = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, Any: 0 };
+
+  cards.forEach(c => {
+    if (!c.cardData) return;
+
+    // Calculate Pips
+    if (c.cardData.mana_cost) {
+      const ms = c.cardData.mana_cost;
+      const symbols = ms.match(/\{[WUBRGC]\}/g) || [];
+      symbols.forEach(s => {
+        const sym = s.replace(/[{}]/g, "");
+        if (pips[sym] !== undefined) pips[sym] += c.qty;
+      });
+    }
+
+    // Calculate Sources
+    if (c.cardData.type_line?.includes("Land")) {
+      const ci = c.cardData.color_identity || [];
+      if (ci.length === 0) {
+        sources.C += c.qty;
+      } else if (ci.length >= 3) {
+        sources.Any += c.qty;
+      } else {
+        ci.forEach(clr => {
+          if (sources[clr] !== undefined) sources[clr] += c.qty;
+        });
+      }
+    }
   });
-  return { totalLands: lands, sources };
+
+  return { pips, sources };
 }
 
 // ═══════════════════════════════════════════════════════════
