@@ -1229,6 +1229,7 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
         <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
           {colors.map(c => <span key={c} style={{ fontSize: 12 }}>{COLORS.find(x => x.id === c)?.sym || "?"}</span>)}
           <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: "#c9a84c", fontWeight: 600, flex: 1 }}>{entry.name}</span>
+          {entry.totalPrice > 0 && <span style={{ fontSize: 10, color: "#4DB87A", fontWeight: 700 }}>${entry.totalPrice.toFixed(0)}</span>}
         </div>
         <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>{count} cards · {entry.format || "Modern"}</div>
         <div style={{ fontSize: 9, color: "#333", lineHeight: 1.4 }}>
@@ -1662,11 +1663,17 @@ export default function MTGDeckArchitect() {
 
   const confirmSave = () => {
     if (!saveModal || !saveName.trim()) return;
+    const serialized = serializeDeck(saveModal);
+    const colors = deckColorIds(serialized);
+    const totalPrice = computePrice([...serialized.mainboard, ...(serialized.sideboard || []), ...(serialized.commander || [])]);
+
     const entry = {
       id: saveModal._existingId || (Date.now().toString(36) + Math.random().toString(36).substr(2, 5)),
       name: saveName.trim(),
-      deck: serializeDeck(saveModal),
+      deck: serialized,
       format: "Modern",
+      colors: colors,
+      totalPrice: totalPrice,
       savedAt: new Date().toISOString(),
     };
 
@@ -1788,8 +1795,11 @@ export default function MTGDeckArchitect() {
                               boxShadow: isSelected ? "0 0 15px rgba(201, 168, 76, 0.1)" : "none"
                             }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                              <div>
-                                <div style={{ fontSize: 16, color: isSelected ? "#c9a84c" : "#888", fontFamily: "'Cinzel', serif", marginBottom: 2 }}>{d.name}</div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <div style={{ fontSize: 16, color: isSelected ? "#c9a84c" : "#888", fontFamily: "'Cinzel', serif", marginBottom: 2 }}>{d.name}</div>
+                                  {d.totalPrice > 0 && <span style={{ fontSize: 12, color: "#4DB87A", fontWeight: 700, fontFamily: "'Cinzel', serif" }}>${d.totalPrice.toFixed(0)}</span>}
+                                </div>
                                 <div style={{ fontSize: 10, color: "#666", marginBottom: 12 }}>{new Date(d.savedAt).toLocaleDateString()}</div>
                               </div>
                               <div style={{

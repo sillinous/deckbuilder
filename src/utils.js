@@ -197,9 +197,28 @@ export function saveVault(v) {
 }
 
 export function serializeDeck(deck) {
+  const mapCard = c => ({
+    qty: c.qty,
+    name: c.name,
+    cardData: c.cardData ? {
+      name: c.cardData.name,
+      type_line: c.cardData.type_line,
+      cmc: c.cardData.cmc,
+      mana_cost: c.cardData.mana_cost,
+      colors: c.cardData.colors,
+      color_identity: c.cardData.color_identity,
+      image_uris: c.cardData.image_uris,
+      card_faces: c.cardData.card_faces,
+      prices: c.cardData.prices,
+      oracle_text: c.cardData.oracle_text,
+      rarity: c.cardData.rarity
+    } : null
+  });
+
   return {
-    mainboard: deck.mainboard.map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
-    sideboard: (deck.sideboard || []).map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
+    mainboard: deck.mainboard.map(mapCard),
+    sideboard: (deck.sideboard || []).map(mapCard),
+    commander: (deck.commander || []).map(mapCard),
   };
 }
 
