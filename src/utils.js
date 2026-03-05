@@ -50,11 +50,13 @@ export function computeCurve(cards) {
 }
 
 export function computeTypes(cards) {
-  const t = { Creature: 0, Instant: 0, Sorcery: 0, Enchantment: 0, Artifact: 0, Planeswalker: 0, Land: 0, Other: 0 };
+  const t = { Creature: 0, Planeswalker: 0, Land: 0, Battle: 0, Instant: 0, Sorcery: 0, Enchantment: 0, Artifact: 0, Other: 0 };
   cards.forEach(c => {
     const tl = c.cardData?.type_line || "Other";
     let found = false;
-    for (const type of Object.keys(t)) {
+    // Prioritize certain types for multi-type cards (e.g. Creature Lands -> Creature, Artifact Lands -> Land)
+    const priority = ["Creature", "Planeswalker", "Land", "Battle", "Instant", "Sorcery", "Enchantment", "Artifact"];
+    for (const type of priority) {
       if (tl.includes(type)) {
         t[type] += c.qty;
         found = true;

@@ -122,7 +122,7 @@ function CurveChart({ data }) {
 
 function TypeBars({ data }) {
   const total = Object.values(data).reduce((a, b) => a + b, 0) || 1;
-  const clr = { Creature: "#4DB87A", Instant: "#4DA3D4", Sorcery: "#E05A50", Enchantment: "#A68DA0", Artifact: "#777", Planeswalker: "#c9a84c", Land: "#8B7355", Other: "#444" };
+  const clr = { Creature: "#4DB87A", Planeswalker: "#c9a84c", Land: "#8B7355", Battle: "#E05A50", Instant: "#4DA3D4", Sorcery: "#E06A50", Enchantment: "#A68DA0", Artifact: "#777", Other: "#444" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {Object.entries(data).sort((a, b) => b[1] - a[1]).map(([tp, ct]) => (
@@ -338,7 +338,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   };
 
   const groups = {};
-  const order = ["Creature","Planeswalker","Instant","Sorcery","Enchantment","Artifact","Land","Other"];
+  const order = ["Creature", "Planeswalker", "Land", "Battle", "Instant", "Sorcery", "Enchantment", "Artifact", "Other"];
   deck.mainboard.forEach(card => {
     const tl = card.cardData?.type_line || "";
     let g = "Other";
