@@ -682,6 +682,14 @@ function AIAgent({ onSaveDeck, providerCfg }) {
   const handleGenerateGuide = (deck) => aiGenerateGuide(deck, providerCfg);
   const handleBudgetize = (deck, mode) => aiBudgetize(deck, providerCfg, mode);
 
+  const resetChat = () => {
+    if (!window.confirm("Are you sure you want to clear the chat history?")) return;
+    setMessages([]);
+    historyRef.current = [];
+    localStorage.removeItem("arcanum_chat_messages");
+    localStorage.removeItem("arcanum_chat_history");
+  };
+
   const send = async (inputText) => {
     if (!inputText.trim() || busy) return;
     setMessages(prev => [...prev, { role: "user", content: inputText.trim() }]);
@@ -805,6 +813,13 @@ function AIAgent({ onSaveDeck, providerCfg }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 110px)", position: "relative" }}>
+      {messages.length > 0 && (
+        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+          <button onClick={resetChat} style={{ ...xBtn, fontSize: 9, background: "#0d0d0dcc", backdropFilter: "blur(4px)", padding: "4px 8px", opacity: 0.8 }} onMouseOver={e => e.currentTarget.style.opacity = 1} onMouseOut={e => e.currentTarget.style.opacity = 0.8}>
+            ↺ Reset Chat
+          </button>
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 0" }}>
         {messages.length === 0 && (
           <div style={{ textAlign: "center", padding: "36px 16px", animation: "fadeIn 0.5s ease" }}>
