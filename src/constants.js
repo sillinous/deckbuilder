@@ -1,3 +1,45 @@
+export const AI_PROVIDERS = [
+  {
+    id: "groq-free", name: "Groq (Free)", desc: "Llama 3.3 70B — no key needed, shared rate limit", needsKey: false,
+    models: [{ id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" }], defaultModel: "llama-3.3-70b-versatile"
+  },
+  {
+    id: "groq", name: "Groq", desc: "Your own key — higher rate limits", needsKey: true, url: "https://console.groq.com/keys",
+    models: [
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B (fast)" },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+      { id: "gemma2-9b-it", name: "Gemma 2 9B" },
+    ], defaultModel: "llama-3.3-70b-versatile"
+  },
+  {
+    id: "anthropic", name: "Anthropic", desc: "Claude — best quality, paid", needsKey: true, url: "https://console.anthropic.com/settings/keys",
+    models: [
+      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+      { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5 (fast)" },
+    ], defaultModel: "claude-sonnet-4-20250514"
+  },
+  {
+    id: "openrouter", name: "OpenRouter", desc: "Access any model — pay per token", needsKey: true, url: "https://openrouter.ai/keys",
+    models: [
+      { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
+      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+      { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek V3" },
+      { id: "mistralai/mistral-medium-3", name: "Mistral Medium 3" },
+    ], defaultModel: "anthropic/claude-sonnet-4"
+  },
+  {
+    id: "openai", name: "OpenAI", desc: "GPT-4o — paid", needsKey: true, url: "https://platform.openai.com/api-keys",
+    models: [
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini (fast)" },
+      { id: "gpt-4.1", name: "GPT-4.1" },
+      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
+    ], defaultModel: "gpt-4o"
+  },
+];
+
 export const FORMATS = [
   { id: "standard", name: "Standard", deckSize: 60, sb: 15, desc: "Last 2-3 sets" },
   { id: "modern", name: "Modern", deckSize: 60, sb: 15, desc: "8th Ed forward" },
@@ -64,6 +106,59 @@ After the decklist, ALWAYS provide detailed strategic analysis covering: game pl
 
 Be opinionated. Have strong takes. Explain WHY. Don't hedge — commit to the best builds. If the user asks for "the best deck" with no constraints, deliver the single strongest list you know.`;
 
+export const SB_GUIDE_SYSTEM = `You are Arcanum — the tactical MTG analyst.
+Generate a Sideboard Guide in JSON format for the provided deck against the current meta.
+Use the web_search tool to find the current top tier decks if you don't know them.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "2-3 sentence overview of sideboarding strategy",
+  "matchups": [
+    {
+      "opponent": "Deck Name",
+      "in": "Cards to bring in (quantities + names)",
+      "out": "Cards to take out (quantities + names)"
+    }
+  ]
+}`;
+
+export const BUDGET_SYSTEM = `You are Arcanum — the MTG budget optimizer.
+Analyze the provided deck and suggest replacements for the 3-5 most expensive cards to make it more budget-friendly. 
+Alternatively, suggest 'Power Up' replacements if the user wants the most powerful version.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "Brief budget/power overview",
+  "suggestions": [
+    { "original": "Card Name", "replacement": "New Card Name", "reason": "Why this swap?" }
+  ]
+}`;
+
+export const SIM_SYSTEM = `You are Arcanum — the world's most elite MTG match simulator. You simulate games of Magic: The Gathering between two decks with EXTREME realism.
+
+For each game, consider: opening hands, mulligans, mana curve efficiency, MANA BASE QUALITY (land count, color fixing, fetch/shock/dual lands), card interactions, matchup dynamics, sideboard impact (games 2-3), tempo, card advantage, and win conditions.
+
+CRITICAL: A deck with too few lands (under 20 in a 60-card deck) will frequently mana-screw and lose. A deck with no lands is NON-FUNCTIONAL and auto-loses every game. Factor land count and mana base quality heavily into simulation results.
+
+You must simulate with nuance — aggro doesn't always beat control. Games involve variance. The better-positioned deck wins MORE often, but upsets happen.
+
+OUTPUT FORMAT — respond with ONLY this JSON structure, no other text:
+{
+  "games": [
+    {
+      "game_num": 1,
+      "winner": "Deck A",
+      "turn_won": 7,
+      "key_play": "One-sentence pivotal moment",
+      "narrative": "2-3 sentence game summary"
+    }
+  ],
+  "match_winner": "Deck A",
+  "match_score": "2-1",
+  "mvp_card": "Card that mattered most",
+  "analysis": "3-5 sentence detailed analysis of the matchup dynamics, what decided the match, and how each deck performed relative to expectations."
+}`;
+
 export const QUICK_PROMPTS = [
   { label: "🏆 Best Modern deck", prompt: "What is the single most competitive Modern deck right now? Build the absolute best list with full sideboard and detailed analysis. No constraints — just the strongest deck in the format." },
   { label: "🔥 Best Pioneer deck", prompt: "Build the #1 tier Pioneer deck. No constraints. Just give me the most competitive list possible." },
@@ -74,3 +169,6 @@ export const QUICK_PROMPTS = [
   { label: "🧩 Hidden synergy finder", prompt: "Find me an underplayed or overlooked synergy in Modern that could form the core of a competitive deck nobody is running. Surprise me." },
   { label: "⚡ Fastest kill in Standard", prompt: "What is the absolute fastest possible kill in current Standard? Build a deck that can goldfish a turn 3-4 kill as consistently as possible." },
 ];
+
+export const VAULT_KEY = "arcanum_vault";
+export const xBtn = { background: "#0f0f0f", border: "1px solid #1f1f1f", color: "#777", padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 10, fontFamily: "'Cinzel', serif" };
