@@ -151,10 +151,35 @@ OUTPUT FORMAT (JSON):
   ]
 }`;
 
+const SIM_SYSTEM = `You are Arcanum — the world's most elite MTG match simulator. You simulate games of Magic: The Gathering between two decks with EXTREME realism.
+
+For each game, consider: opening hands, mulligans, mana curve efficiency, MANA BASE QUALITY (land count, color fixing, fetch/shock/dual lands), card interactions, matchup dynamics, sideboard impact (games 2-3), tempo, card advantage, and win conditions.
+
+CRITICAL: A deck with too few lands (under 20 in a 60-card deck) will frequently mana-screw and lose. A deck with no lands is NON-FUNCTIONAL and auto-loses every game. Factor land count and mana base quality heavily into simulation results.
+
+You must simulate with nuance — aggro doesn't always beat control. Games involve variance. The better-positioned deck wins MORE often, but upsets happen.
+
+OUTPUT FORMAT — respond with ONLY this JSON structure, no other text:
+{
+  "games": [
+    {
+      "game_num": 1,
+      "winner": "Deck A",
+      "turn_won": 7,
+      "key_play": "One-sentence pivotal moment",
+      "narrative": "2-3 sentence game summary"
+    }
+  ],
+  "match_winner": "Deck A",
+  "match_score": "2-1",
+  "mvp_card": "Card that mattered most",
+  "analysis": "3-5 sentence detailed analysis of the matchup dynamics, what decided the match, and how each deck performed relative to expectations."
+}`;
+
 const QUICK_PROMPTS = [
   { label: "🏆 Best Modern deck", prompt: "What is the single most competitive Modern deck right now? Build the absolute best list with full sideboard and detailed analysis. No constraints — just the strongest deck in the format." },
   { label: "🔥 Best Pioneer deck", prompt: "Build the #1 tier Pioneer deck. No constraints. Just give me the most competitive list possible." },
-  { label: "💰 Budget Modern (<$100)", prompt: "Build me the most competitive Modern deck possible for under $100 total. I want to win FNM on a budget." },
+  { id: "budget", label: "💰 Budget Modern (<$100)", prompt: "Build me the most competitive Modern deck possible for under $100 total. I want to win FNM on a budget." },
   { label: "💀 Most degenerate combo", prompt: "Find me the most degenerate, unfair combo deck in Modern. I want my opponent to not get to play Magic. Goldfish as fast as possible." },
   { label: "👑 cEDH Commander", prompt: "Build the strongest possible Commander deck. cEDH power level. Full 100 cards with detailed analysis of the combo lines." },
   { label: "🎯 Counter the meta", prompt: "Analyze the current Modern metagame and build a deck specifically designed to prey on the top 3 most popular decks. I want to be the meta-breaker." },
@@ -247,7 +272,7 @@ function serializeDeck(deck) {
 // SHARED UI COMPONENTS
 // ═══════════════════════════════════════════════════════════
 
-const CurveChart = ({ data }) => {
+function CurveChart({ data }) {
   const max = Math.max(...Object.values(data), 1);
   const keys = ["0","1","2","3","4","5","6","7+"];
   return (
@@ -266,9 +291,9 @@ const CurveChart = ({ data }) => {
       ))}
     </div>
   );
-};
+}
 
-const TypeBars = ({ data }) => {
+function TypeBars({ data }) {
   const total = Object.values(data).reduce((a, b) => a + b, 0) || 1;
   const clr = { Creature: "#4DB87A", Instant: "#4DA3D4", Sorcery: "#E05A50", Enchantment: "#A68DA0", Artifact: "#777", Planeswalker: "#c9a84c", Land: "#8B7355", Other: "#444" };
   return (
@@ -284,9 +309,9 @@ const TypeBars = ({ data }) => {
       ))}
     </div>
   );
-};
+}
 
-const ManaAnalytics = ({ data }) => {
+function ManaAnalytics({ data }) {
   const { pips, sources } = data;
   const clr = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#888", Any: "#c9a84c" };
   const keys = ["W", "U", "B", "R", "G", "C"];
@@ -309,9 +334,9 @@ const ManaAnalytics = ({ data }) => {
       {sources.Any > 0 && <div style={{ fontSize: 9, color: "#c9a84c", marginTop: 4, fontStyle: "italic" }}>Includes {sources.Any} 'Any Color' sources</div>}
     </div>
   );
-};
+}
 
-const CardRow = ({ card, onHover, isEditMode, onUpdateQty }) => {
+function CardRow({ card, onHover, isEditMode, onUpdateQty }) {
   const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
@@ -1251,30 +1276,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
 // ARENA — Match Simulation Engine
 // ═══════════════════════════════════════════════════════════
 
-const SIM_SYSTEM = `You are Arcanum — the world's most elite MTG match simulator. You simulate games of Magic: The Gathering between two decks with EXTREME realism.
 
-For each game, consider: opening hands, mulligans, mana curve efficiency, MANA BASE QUALITY (land count, color fixing, fetch/shock/dual lands), card interactions, matchup dynamics, sideboard impact (games 2-3), tempo, card advantage, and win conditions.
-
-CRITICAL: A deck with too few lands (under 20 in a 60-card deck) will frequently mana-screw and lose. A deck with no lands is NON-FUNCTIONAL and auto-loses every game. Factor land count and mana base quality heavily into simulation results.
-
-You must simulate with nuance — aggro doesn't always beat control. Games involve variance. The better-positioned deck wins MORE often, but upsets happen.
-
-OUTPUT FORMAT — respond with ONLY this JSON structure, no other text:
-{
-  "games": [
-    {
-      "game_num": 1,
-      "winner": "Deck A",
-      "turn_won": 7,
-      "key_play": "One-sentence pivotal moment",
-      "narrative": "2-3 sentence game summary"
-    }
-  ],
-  "match_winner": "Deck A",
-  "match_score": "2-1",
-  "mvp_card": "Card that mattered most",
-  "analysis": "3-5 sentence detailed analysis of the matchup dynamics, what decided the match, and how each deck performed relative to expectations."
-}`;
 
 function Arena({ vault, setVault, providerCfg }) {
   const [selected, setSelected] = useState([]);
