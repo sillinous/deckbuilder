@@ -17,7 +17,7 @@ import {
 } from "./utils";
 
 // ═══════════════════════════════════════════════════════════
-// AI PROVIDER CONFIG
+// CONSTANTS & CONFIG
 // ═══════════════════════════════════════════════════════════
 
 const AI_PROVIDERS = [
@@ -51,34 +51,6 @@ const AI_PROVIDERS = [
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
     ], defaultModel: "gpt-4o" },
 ];
-
-function loadProviderConfig() {
-  try {
-    const raw = localStorage.getItem("arcanum_provider");
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { providerId: "groq-free", apiKey: "", model: "", tavilyKey: "" };
-}
-
-function saveProviderConfig(cfg) {
-  try { localStorage.setItem("arcanum_provider", JSON.stringify(cfg)); } catch {}
-}
-
-function getApiHeaders(cfg) {
-  const h = { "Content-Type": "application/json" };
-  if (cfg?.providerId && cfg.providerId !== "groq-free") {
-    h["X-Provider"] = cfg.providerId;
-    if (cfg.apiKey) h["X-API-Key"] = cfg.apiKey;
-    if (cfg.model) h["X-Model"] = cfg.model;
-  } else {
-    h["X-Provider"] = "groq-free";
-  }
-  return h;
-}
-
-// ═══════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════
 
 const FORMATS = [
   { id: "standard", name: "Standard", deckSize: 60, sb: 15, desc: "Last 2-3 sets" },
@@ -151,6 +123,34 @@ After the decklist, ALWAYS provide detailed strategic analysis covering: game pl
 
 Be opinionated. Have strong takes. Explain WHY. Don't hedge — commit to the best builds. If the user asks for "the best deck" with no constraints, deliver the single strongest list you know.`;
 
+const SB_GUIDE_SYSTEM = `You are Arcanum — the tactical MTG analyst.
+Generate a Sideboard Guide in JSON format for the provided deck against the current meta.
+Use the web_search tool to find the current top tier decks if you don't know them.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "2-3 sentence overview of sideboarding strategy",
+  "matchups": [
+    {
+      "opponent": "Deck Name",
+      "in": "Cards to bring in (quantities + names)",
+      "out": "Cards to take out (quantities + names)"
+    }
+  ]
+}`;
+
+const BUDGET_SYSTEM = `You are Arcanum — the MTG budget optimizer.
+Analyze the provided deck and suggest replacements for the 3-5 most expensive cards to make it more budget-friendly. 
+Alternatively, suggest 'Power Up' replacements if the user wants the most powerful version.
+
+OUTPUT FORMAT (JSON):
+{
+  "analysis": "Brief budget/power overview",
+  "suggestions": [
+    { "original": "Card Name", "replacement": "New Card Name", "reason": "Why this swap?" }
+  ]
+}`;
+
 const QUICK_PROMPTS = [
   { label: "🏆 Best Modern deck", prompt: "What is the single most competitive Modern deck right now? Build the absolute best list with full sideboard and detailed analysis. No constraints — just the strongest deck in the format." },
   { label: "🔥 Best Pioneer deck", prompt: "Build the #1 tier Pioneer deck. No constraints. Just give me the most competitive list possible." },
@@ -162,9 +162,36 @@ const QUICK_PROMPTS = [
   { label: "⚡ Fastest kill in Standard", prompt: "What is the absolute fastest possible kill in current Standard? Build a deck that can goldfish a turn 3-4 kill as consistently as possible." },
 ];
 
+const VAULT_KEY = "arcanum_vault";
+const xBtn = { background: "#0f0f0f", border: "1px solid #1f1f1f", color: "#777", padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 10, fontFamily: "'Cinzel', serif" };
+
 // ═══════════════════════════════════════════════════════════
-// DECK FORMATTING & LOCAL STATS
+// HELPERS
 // ═══════════════════════════════════════════════════════════
+
+function loadProviderConfig() {
+  try {
+    const raw = localStorage.getItem("arcanum_provider");
+    if (raw) return JSON.parse(raw);
+  } catch { }
+  return { providerId: "groq-free", apiKey: "", model: "", tavilyKey: "" };
+}
+
+function saveProviderConfig(cfg) {
+  try { localStorage.setItem("arcanum_provider", JSON.stringify(cfg)); } catch { }
+}
+
+function getApiHeaders(cfg) {
+  const h = { "Content-Type": "application/json" };
+  if (cfg?.providerId && cfg.providerId !== "groq-free") {
+    h["X-Provider"] = cfg.providerId;
+    if (cfg.apiKey) h["X-API-Key"] = cfg.apiKey;
+    if (cfg.model) h["X-Model"] = cfg.model;
+  } else {
+    h["X-Provider"] = "groq-free";
+  }
+  return h;
+}
 
 function deckColorIds(deck) {
   const s = new Set();
@@ -176,7 +203,6 @@ function deckColorIds(deck) {
 
 function deckToText(deck) {
   const lines = [];
-  // Group by type for clarity
   const typeOrder = ["Creature","Planeswalker","Instant","Sorcery","Enchantment","Artifact","Land","Other"];
   const groups = {};
   deck.mainboard.forEach(c => {
@@ -200,6 +226,22 @@ function deckToText(deck) {
   }
   return lines.join("\n");
 }
+
+function loadVault() {
+  try { return JSON.parse(localStorage.getItem(VAULT_KEY) || "[]"); } catch { return []; }
+}
+
+function saveVault(v) {
+  localStorage.setItem(VAULT_KEY, JSON.stringify(v));
+}
+
+function serializeDeck(deck) {
+  return {
+    mainboard: deck.mainboard.map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
+    sideboard: (deck.sideboard || []).map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
+  };
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // SHARED UI COMPONENTS
@@ -692,28 +734,9 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   );
 }
 
-const xBtn = { background: "#0f0f0f", border: "1px solid #1f1f1f", color: "#777", padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 10, fontFamily: "'Cinzel', serif" };
-
 // ═══════════════════════════════════════════════════════════
-// DECK VAULT — Persistent deck storage
+// AGENT CHAT MESSAGE
 // ═══════════════════════════════════════════════════════════
-
-const VAULT_KEY = "arcanum_vault";
-
-function loadVault() {
-  try { return JSON.parse(localStorage.getItem(VAULT_KEY) || "[]"); } catch { return []; }
-}
-
-function saveVault(v) {
-  localStorage.setItem(VAULT_KEY, JSON.stringify(v));
-}
-
-function serializeDeck(deck) {
-  return {
-    mainboard: deck.mainboard.map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
-    sideboard: (deck.sideboard || []).map(c => ({ qty: c.qty, name: c.name, cardData: c.cardData ? { name: c.cardData.name, type_line: c.cardData.type_line, cmc: c.cardData.cmc, mana_cost: c.cardData.mana_cost, colors: c.cardData.colors, color_identity: c.cardData.color_identity, image_uris: c.cardData.image_uris, card_faces: c.cardData.card_faces } : null })),
-  };
-}
 
 // ═══════════════════════════════════════════════════════════
 // AGENT CHAT MESSAGE
@@ -774,34 +797,6 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
 // ═══════════════════════════════════════════════════════════
 // AI AGENT — PRIMARY FEATURE
 // ═══════════════════════════════════════════════════════════
-
-const SB_GUIDE_SYSTEM = `You are Arcanum — the tactical MTG analyst.
-Generate a Sideboard Guide in JSON format for the provided deck against the current meta.
-Use the web_search tool to find the current top tier decks if you don't know them.
-
-OUTPUT FORMAT (JSON):
-{
-  "analysis": "2-3 sentence overview of sideboarding strategy",
-  "matchups": [
-    {
-      "opponent": "Deck Name",
-      "in": "Cards to bring in (quantities + names)",
-      "out": "Cards to take out (quantities + names)"
-    }
-  ]
-}`;
-
-const BUDGET_SYSTEM = `You are Arcanum — the MTG budget optimizer.
-Analyze the provided deck and suggest replacements for the 3-5 most expensive cards to make it more budget-friendly. 
-Alternatively, suggest 'Power Up' replacements if the user wants the most powerful version.
-
-OUTPUT FORMAT (JSON):
-{
-  "analysis": "Brief budget/power overview",
-  "suggestions": [
-    { "original": "Card Name", "replacement": "New Card Name", "reason": "Why this swap?" }
-  ]
-}`;
 
 async function runToolLoop(system, messages, providerCfg, onUpdateStatus) {
   let resp;
