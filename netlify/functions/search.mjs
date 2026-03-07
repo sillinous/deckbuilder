@@ -13,11 +13,14 @@ export default async (req, context) => {
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: cors });
 
   const userKey = req.headers.get("x-tavily-key") || "";
-  const apiKey = userKey || process.env.TAVILY_API_KEY;
+  const apiKeyStr = userKey || process.env.TAVILY_API_KEY;
 
-  if (!apiKey) {
+  if (!apiKeyStr) {
     return new Response(JSON.stringify({ error: "No Tavily API key provided. Please configure one in Settings." }), { status: 401, headers: cors });
   }
+
+  const apiKeys = apiKeyStr.split(",").map(k => k.trim()).filter(Boolean);
+  const apiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
 
   try {
     const body = await req.json();

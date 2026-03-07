@@ -1464,7 +1464,7 @@ function SettingsModal({ config, setConfig, onClose }) {
 
   const handleProviderChange = (id) => {
     const p = AI_PROVIDERS.find(x => x.id === id);
-    setLocalCfg(prev => ({ ...prev, providerId: id, model: p?.defaultModel || "", apiKey: id === prev.providerId ? prev.apiKey : "" }));
+    setLocalCfg(prev => ({ ...prev, providerId: id, model: p?.defaultModel || "" }));
     setTestStatus(null);
   };
 
@@ -1542,9 +1542,17 @@ function SettingsModal({ config, setConfig, onClose }) {
               <div style={{ flex: 1, position: "relative" }}>
                 <input
                   type={showKey ? "text" : "password"}
-                  value={localCfg.apiKey}
-                  onChange={e => { setLocalCfg(prev => ({ ...prev, apiKey: e.target.value })); setTestStatus(null); }}
-                  placeholder={`Paste your ${provider.name} API key...`}
+                  value={(localCfg.keys && localCfg.keys[localCfg.providerId]) || localCfg.apiKey || ""}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setLocalCfg(prev => ({
+                      ...prev,
+                      apiKey: val,
+                      keys: { ...(prev.keys || {}), [localCfg.providerId]: val }
+                    }));
+                    setTestStatus(null);
+                  }}
+                  placeholder={`Paste your ${provider.name} API key(s) separated by commas...`}
                   style={inp}
                 />
                 <button onClick={() => setShowKey(!showKey)} style={{
@@ -1604,12 +1612,12 @@ function SettingsModal({ config, setConfig, onClose }) {
 
         {/* Test connection */}
         <div style={{ marginBottom: 20 }}>
-          <button onClick={testConnection} disabled={provider.needsKey && !localCfg.apiKey}
+          <button onClick={testConnection} disabled={provider.needsKey && !((localCfg.keys && localCfg.keys[localCfg.providerId]) || localCfg.apiKey)}
             style={{
               padding: "7px 16px", borderRadius: 5, fontSize: 10, cursor: "pointer",
               fontFamily: "'Cinzel', serif", letterSpacing: 1,
               background: "#0a0a0a", border: "1px solid #1a1a1a", color: "#666",
-              opacity: provider.needsKey && !localCfg.apiKey ? 0.4 : 1,
+              opacity: provider.needsKey && !((localCfg.keys && localCfg.keys[localCfg.providerId]) || localCfg.apiKey) ? 0.4 : 1,
             }}>
             {testStatus === "testing" ? "⏳ Testing..." : "🔌 Test Connection"}
           </button>

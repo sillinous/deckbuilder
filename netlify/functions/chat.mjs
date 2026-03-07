@@ -84,11 +84,18 @@ function openAIToAnthropic(data) {
   };
 }
 
-async function callWithRetry(url, opts, maxRetries = 4) {
+async function callWithRetry(url, getOpts, apiKeys, maxRetries = 4) {
   let resp;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const key = apiKeys[attempt % apiKeys.length];
+    const opts = getOpts(key);
     resp = await fetch(url, opts);
     if (resp.status === 429 && attempt < maxRetries) {
+      if (apiKeys.length > 1) {
+        // Try the next key quickly
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
       const ra = resp.headers.get("retry-after");
       const ms = ra ? Math.min(parseInt(ra) * 1000, 60000) : Math.min(2000 * Math.pow(2.5, attempt), 60000);
       await new Promise(r => setTimeout(r, ms));
@@ -119,13 +126,18 @@ export default async (req, context) => {
     return new Response(JSON.stringify({ type: "error", error: { type: "invalid_provider", message: `Unknown provider: ${providerId}` } }), { status: 400, headers: cors });
   }
 
-  const apiKey = providerId === "groq-free" ? process.env.GROQ_API_KEY : userKey;
+  const apiKeyStr = providerId === "groq-free" ? process.env.GROQ_API_KEY : userKey;
 
-  if (!apiKey) {
+  if (!apiKeyStr) {
     const msg = providerId === "groq-free"
       ? "Server GROQ_API_KEY not set. Get a free key at https://console.groq.com"
       : `No API key for ${providerId}. Add your key in Settings.`;
     return new Response(JSON.stringify({ type: "error", error: { type: "auth_error", message: msg } }), { status: 401, headers: cors });
+  }
+
+  const apiKeys = apiKeyStr.split(",").map(k => k.trim()).filter(Boolean);
+  if (apiKeys.length === 0) {
+    return new Response(JSON.stringify({ type: "error", error: { type: "auth_error", message: "API key is empty." } }), { status: 401, headers: cors });
   }
 
   try {
@@ -139,11 +151,11 @@ export default async (req, context) => {
       if (body.system) aBody.system = body.system;
       if (body.tools) aBody.tools = body.tools;
 
-      const resp = await callWithRetry(provider.url, {
+      const resp = await callWithRetry(provider.url, (key) => ({
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
         body: JSON.stringify(aBody),
-      });
+      }), apiKeys);
 
       const data = await resp.json();
       if (!resp.ok) {
@@ -154,11 +166,14 @@ export default async (req, context) => {
     }
 
     // ── OpenAI-compatible (Groq, OpenRouter, OpenAI) ──────
-    const hdrs = { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` };
-    if (providerId === "openrouter") {
-      hdrs["HTTP-Referer"] = "https://arcanum-mtg-architect.netlify.app";
-      hdrs["X-Title"] = "Arcanum MTG Architect";
-    }
+    const getHdrs = (key) => {
+      const hdrs = { "Content-Type": "application/json", "Authorization": `Bearer ${key}` };
+      if (providerId === "openrouter") {
+        hdrs["HTTP-Referer"] = "https://arcanum-mtg-architect.netlify.app";
+        hdrs["X-Title"] = "Arcanum MTG Architect";
+      }
+      return hdrs;
+    };
 
     const oaiBody = { model, max_tokens: maxTokens, temperature: 0.7, messages: buildOpenAIMessages(body) };
     if (body.tools) {
@@ -168,10 +183,10 @@ export default async (req, context) => {
       }));
     }
 
-    const resp = await callWithRetry(provider.url, {
-      method: "POST", headers: hdrs,
+    const resp = await callWithRetry(provider.url, (key) => ({
+      method: "POST", headers: getHdrs(key),
       body: JSON.stringify(oaiBody),
-    });
+    }), apiKeys);
 
     const data = await resp.json();
     if (!resp.ok) {

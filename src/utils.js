@@ -158,7 +158,14 @@ export function runGoldfishSim(deck, iterations = 1000) {
 
 export function loadProviderConfig() {
   const saved = localStorage.getItem("arcanum_provider_config");
-  return saved ? JSON.parse(saved) : { providerId: "groq-free", modelId: "llama-3.3-70b-versatile", apiKey: "", tavilyKey: "" };
+  const defaults = { providerId: "groq-free", modelId: "llama-3.3-70b-versatile", apiKey: "", keys: {}, tavilyKey: "" };
+  if (!saved) return defaults;
+  const cfg = JSON.parse(saved);
+  if (!cfg.keys) cfg.keys = {};
+  if (cfg.apiKey && cfg.providerId && !cfg.keys[cfg.providerId]) {
+    cfg.keys[cfg.providerId] = cfg.apiKey;
+  }
+  return cfg;
 }
 
 export function saveProviderConfig(cfg) {
@@ -168,10 +175,11 @@ export function saveProviderConfig(cfg) {
 export function getApiHeaders(cfg) {
   const p = AI_PROVIDERS.find(x => x.id === cfg.providerId) || AI_PROVIDERS[0];
   const h = { "Content-Type": "application/json" };
-  if (p.id === "anthropic") h["X-Anthropic-Key"] = cfg.apiKey;
-  else if (p.id === "openai") h["Authorization"] = `Bearer ${cfg.apiKey}`;
-  else if (p.id === "groq") h["X-Groq-Key"] = cfg.apiKey;
-  else if (p.id === "openrouter") h["Authorization"] = `Bearer ${cfg.apiKey}`;
+  const apiKey = (cfg.keys && cfg.keys[cfg.providerId]) || cfg.apiKey || "";
+  if (p.id === "anthropic") h["X-Anthropic-Key"] = apiKey;
+  else if (p.id === "openai") h["Authorization"] = `Bearer ${apiKey}`;
+  else if (p.id === "groq") h["X-Groq-Key"] = apiKey;
+  else if (p.id === "openrouter") h["Authorization"] = `Bearer ${apiKey}`;
   return h;
 }
 
