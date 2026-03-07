@@ -35,6 +35,7 @@ import {
   BUDGET_SYSTEM,
   SIM_SYSTEM,
   VAULT_KEY,
+  IMPORT_ANALYSIS_PROMPT,
   xBtn
 } from "./constants";
 
@@ -660,6 +661,8 @@ function AIAgent({ onSaveDeck, providerCfg }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState("");
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
   const historyRef = useRef([]);
@@ -828,6 +831,14 @@ function AIAgent({ onSaveDeck, providerCfg }) {
             <p style={{ fontFamily: "'Crimson Text', serif", color: "#555", fontSize: 13, maxWidth: 480, margin: "0 auto 28px", lineHeight: 1.6 }}>
               Build decks, find combos, optimize every card slot. Save decks to your Vault, then pit them against each other in the Arena.
             </p>
+            <div style={{ marginBottom: 28 }}>
+              <button
+                onClick={() => setImportModalOpen(true)}
+                style={{ ...xBtn, background: "linear-gradient(135deg, #182a2a, #101818)", borderColor: "#4DA3D433", color: "#4DA3D4", padding: "10px 20px", fontSize: 12, borderRadius: 8 }}
+              >
+                📥 Import & Analyze Deck
+              </button>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxWidth: 560, margin: "0 auto" }}>
               {QUICK_PROMPTS.map((qp, i) => (
                 <button key={i} onClick={() => send(qp.prompt)} style={{ padding: "10px 12px", background: "#0d0d0d", border: "1px solid #181818", borderRadius: 8, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}
@@ -853,6 +864,37 @@ function AIAgent({ onSaveDeck, providerCfg }) {
           <button onClick={() => send(input)} disabled={!input.trim() || busy} style={{ width: 34, height: 34, borderRadius: "50%", background: input.trim() && !busy ? "linear-gradient(135deg, #c9a84c, #8a6d2f)" : "#1a1a1a", border: "none", cursor: input.trim() && !busy ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>↑</button>
         </div>
       </div>
+
+      {/* Import Modal */}
+      {importModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setImportModalOpen(false)}>
+          <div style={{ background: "#0d0d0d", border: "1px solid #4DA3D433", borderRadius: 12, padding: 24, width: 480, maxWidth: "90%" }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 15, color: "#4DA3D4", marginBottom: 16, letterSpacing: 2 }}>📥 IMPORT DECK FOR ANALYSIS</h3>
+            <p style={{ fontSize: 12, color: "#aaa", fontFamily: "'Crimson Text', serif", marginBottom: 12 }}>Paste your decklist below (Arena, MTGO, or plaintext format). Arcanum will analyze it, identify weaknesses, and suggest competitive upgrades.</p>
+            <textarea
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              placeholder="4 Ragavan, Nimble Pilferer&#10;4 Lightning Bolt&#10;..."
+              style={{ width: "100%", height: 200, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 6, padding: "12px", color: "#ddd", fontSize: 13, fontFamily: "'Crimson Text', serif", resize: "none", marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setImportModalOpen(false)} style={xBtn}>Cancel</button>
+              <button
+                onClick={() => {
+                  if (!importText.trim()) return;
+                  send(IMPORT_ANALYSIS_PROMPT + importText);
+                  setImportText("");
+                  setImportModalOpen(false);
+                }}
+                disabled={!importText.trim()}
+                style={{ ...xBtn, background: importText.trim() ? "#4DA3D415" : "#1a1a1a", color: importText.trim() ? "#4DA3D4" : "#555", borderColor: importText.trim() ? "#4DA3D444" : "#1a1a1a" }}
+              >
+                ✦ Analyze Deck
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

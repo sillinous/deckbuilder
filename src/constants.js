@@ -170,5 +170,7 @@ export const QUICK_PROMPTS = [
   { label: "⚡ Fastest kill in Standard", prompt: "What is the absolute fastest possible kill in current Standard? Build a deck that can goldfish a turn 3-4 kill as consistently as possible." },
 ];
 
+export const IMPORT_ANALYSIS_PROMPT = "Please analyze the following imported decklist. Identify any weaknesses, suggest potential improvements, and provide recommendations for enhancements to make this a more competitive deck in its given format. Be specific with card replacements and strategic advice. Here is the deck:\n\n";
+
 export const VAULT_KEY = "arcanum_vault";
 export const xBtn = { background: "#0f0f0f", border: "1px solid #1f1f1f", color: "#777", padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 10, fontFamily: "'Cinzel', serif" };
