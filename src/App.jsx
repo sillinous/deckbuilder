@@ -1135,9 +1135,46 @@ Simulate exactly ${bestOf === 1 ? "1 game" : `a Best-of-${bestOf} series (stop w
           // Parse JSON from response
           let matchData;
           try {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            matchData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-          } catch { matchData = null; }
+            let cleanText = text;
+            const cbMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+            if (cbMatch) cleanText = cbMatch[1];
+
+            const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              let jsonStr = jsonMatch[0]
+                .replace(/,\s*([\]}])/g, '$1') // remove trailing commas
+                .replace(/[\u0000-\u0019]+/g, ""); // strip control chars
+
+              // Try to fix unescaped quotes inside strings (very basic heuristic)
+              // But standard parse first just in case it's valid
+              try {
+                matchData = JSON.parse(jsonStr);
+              } catch (e) {
+                // If it fails, maybe there are literal newlines inside string values
+                jsonStr = jsonStr.replace(/\n/g, '\\n').replace(/\r/g, '');
+                // Clean up the structure keys to not have escaped newlines
+                jsonStr = jsonStr.replace(/\\n\s*"/g, '\n"').replace(/\\n\s*\}/g, '\n}').replace(/\\n\s*\]/g, '\n]');
+                matchData = JSON.parse(jsonStr);
+              }
+            }
+          } catch (e) {
+            matchData = null;
+          }
+
+          // Ultimate Fallback if parsing completely fails but it looks like our object
+          if (!matchData && text.includes('"match_winner"')) {
+            const wMatch = text.match(/"match_winner"\s*:\s*"([^"]+)"/i);
+            const sMatch = text.match(/"match_score"\s*:\s*"([^"]+)"/i);
+            const aMatch = text.match(/"analysis"\s*:\s*"([^"]+)"/i);
+            if (wMatch) {
+              matchData = {
+                match_winner: wMatch[1],
+                match_score: sMatch ? sMatch[1] : "?-?",
+                analysis: aMatch ? aMatch[1] : text,
+                games: []
+              };
+            }
+          }
 
           if (matchData) {
             const winner = matchData.match_winner === "Deck A" ? deckA.name : deckB.name;
