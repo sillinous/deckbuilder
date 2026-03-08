@@ -171,27 +171,46 @@ function ManaAnalytics({ data, onAutoFix }) {
   );
 }
 
-function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight }) {
+function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onSuggest, inventory, onUpdateInventory }) {
+  const owned = inventory?.[card.name] || 0;
+  const isMissing = owned < card.qty;
   const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
   return (
     <div style={{
       display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease",
-      background: synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
-      boxShadow: synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
-      transition: "all 0.3s ease"
+      background: isMissing ? "rgba(224, 90, 80, 0.05)" : synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
+      boxShadow: isMissing ? "inset 2px 0 0 #E05A50" : synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
+      transition: "all 0.3s ease",
+      borderBottom: "1px solid #1a1a1a33"
     }}
       onMouseEnter={() => img && onHover(img, card.name)} onMouseLeave={() => onHover(null, null)}>
-      <div style={{ width: 18, fontSize: 10, color: "#777", fontWeight: 700 }}>{card.qty}x</div>
-      <div style={{ flex: 1, fontSize: 11, color: "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
+      <div style={{ width: 18, fontSize: 10, color: isMissing ? "#E05A50" : "#777", fontWeight: 700 }}>{card.qty}x</div>
+      <div style={{ flex: 1, fontSize: 11, color: isMissing ? "#eee" : "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
       <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
         {card.cardData?.mana_cost && <div style={{ fontSize: 9, color: "#555" }}>{card.cardData.mana_cost.replace(/[{}]/g, "")}</div>}
+        {onSuggest && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onSuggest(card.name); }}
+            style={{ ...xBtn, padding: "0 4px", fontSize: 10, border: "none", background: "transparent", color: "#c9a84c88" }}
+            onMouseOver={e => e.currentTarget.style.color = "#c9a84c"}
+            onMouseOut={e => e.currentTarget.style.color = "#c9a84c88"}
+          >🔮</button>
+        )}
         {isEditMode && (
           <div style={{ display: "flex", gap: 3, marginLeft: 6 }}>
             <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, -1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>-</button>
             <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, 1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>+</button>
           </div>
+        )}
+        {onUpdateInventory && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onUpdateInventory(card.name, isMissing ? card.qty - owned : -1); }}
+            style={{ ...xBtn, marginLeft: 4, padding: "0 4px", fontSize: 10, background: isMissing ? "#E05A5011" : "transparent", color: isMissing ? "#E05A50" : "#4DB87A88" }}
+          >
+            {isMissing ? "🎒 +" : "✓"}
+          </button>
         )}
       </div>
     </div>
@@ -200,7 +219,90 @@ function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight }) {
 
 // ═══════════════════════════════════════════════════════════
 // NEW COMPONENTS FOR PHASE 3
+function InventoryManager({ inventory, onUpdate }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  const search = async (q) => {
+    if (!q.trim()) return;
+    setSearching(true);
+    const res = await sfSearch(q);
+    setResults(res || []);
+    setSearching(false);
+  };
+
+  const owned = Object.entries(inventory).filter(([_, qty]) => qty > 0);
+
+  return (
+    <div style={{ animation: "fadeIn 0.3s ease" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 30 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, marginBottom: 16, fontFamily: "'Cinzel', serif" }}>ADD TO COLLECTION</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <input
+              type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && search(searchTerm)}
+              placeholder="Search for cards..."
+              style={{ flex: 1, padding: "10px 14px", background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 6, color: "#eee", fontSize: 13 }}
+            />
+            <button onClick={() => search(searchTerm)} style={{ ...xBtn, background: "#c9a84c", color: "#000", fontWeight: 700 }}>SEARCH</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 600, overflowY: "auto" }}>
+            {searching ? <div style={{ color: "#555", fontSize: 11 }}>Searching...</div> : results.map(c => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d0d", borderRadius: 6, border: "1px solid #1a1a1a" }}>
+                <div style={{ fontSize: 12, color: "#aaa" }}>{c.name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: "#c9a84c" }}>Owned: {inventory[c.name] || 0}</span>
+                  <button onClick={() => onUpdate(c.name, 1)} style={{ ...xBtn, padding: "2px 8px" }}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, marginBottom: 16, fontFamily: "'Cinzel', serif" }}>MY INVENTORY ({owned.length} UNIQUE)</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 680, overflowY: "auto" }}>
+            {owned.length === 0 ? <div style={{ color: "#444", fontSize: 11, fontStyle: "italic" }}>No cards in collection yet.</div> : owned.reverse().map(([name, qty]) => (
+              <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d0d", borderRadius: 6, border: "1px solid #1a1a1a" }}>
+                <div style={{ fontSize: 12, color: "#eee" }}>{name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button onClick={() => onUpdate(name, -1)} style={{ ...xBtn, padding: "2px 6px" }}>-</button>
+                  <span style={{ fontSize: 11, color: "#c9a84c", fontWeight: "bold", width: 20, textAlign: "center" }}>{qty}</span>
+                  <button onClick={() => onUpdate(name, 1)} style={{ ...xBtn, padding: "2px 6px" }}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
+
+function RecommendationStats({ data, onClear, targetCard }) {
+  return (
+    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>🔮 RECOMMENDATIONS FOR: {targetCard.toUpperCase()}</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+        {data.recommendations.map((r, i) => (
+          <div key={i} style={{ background: "#111", borderRadius: 6, padding: 12, border: "1px solid #1a1a1a" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: "bold", color: "#eee" }}>{r.name}</span>
+              <span style={{ fontSize: 9, color: r.role === "Upgrade" ? "#4DB87A" : r.role === "Synergy" ? "#c9a84c" : "#888", border: "1px solid currentColor", padding: "1px 4px", borderRadius: 3, textTransform: "uppercase" }}>{r.role}</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#888", lineHeight: 1.4 }}>{r.reason}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function SideboardGuide({ guide, onClear }) {
   return (
@@ -236,22 +338,31 @@ function SideboardGuide({ guide, onClear }) {
 }
 
 function GoldfishStats({ data, onClear }) {
+  const maxDpt = Math.max(...data.dpt.map(Number), 1);
   return (
-    <div style={{ marginTop: 20, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c22" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>MONTE CARLO STATS (1,000 runs)</div>
-        <button onClick={onClear} style={{ ...xBtn, fontSize: 9 }}>✕</button>
+    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c33", position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>ADVANCED GOLDFISH (500 iterations)</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
         {[
-          ["Avg Lands T3", data.avgLandsTurn3],
-          ["Avg Lands T4", data.avgLandsTurn4],
-          ["T3 Play %", `${data.turn3PlayPct}%`],
-          ["Screw Chance", `${data.manaScrewPct}%`],
-        ].map(([l, v]) => (
-          <div key={l} style={{ background: "#111", padding: "6px 10px", borderRadius: 5, border: "1px solid #1a1a1a" }}>
-            <div style={{ fontSize: 9, color: "#555" }}>{l}</div>
-            <div style={{ fontSize: 13, color: l.includes("Screw") && parseInt(v) > 15 ? "#E05A50" : "#c9a84c", fontWeight: "bold" }}>{v}</div>
+          ["Avg Kill Turn", data.avgKillTurn, "#E05A50"],
+          ["Reliability", `${data.reliability}%`, "#4DB87A"],
+          ["Lands @ T4", data.avgLandsTurn4, "#4DA3D4"],
+        ].map(([l, v, c]) => (
+          <div key={l} style={{ background: "#111", padding: "8px 12px", borderRadius: 6, border: "1px solid #1a1a1a", textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#555", marginBottom: 4 }}>{l}</div>
+            <div style={{ fontSize: 16, color: c, fontWeight: "bold" }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 8 }}>DAMAGE PER TURN (EXPECTED)</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60 }}>
+        {data.dpt.map((d, i) => (
+          <div key={i} style={{ flex: 1, position: "relative" }}>
+            <div style={{ height: `${(d / maxDpt) * 100}%`, background: i + 1 === Math.round(data.avgKillTurn) ? "#E05A50" : "#c9a84c44", borderRadius: "3px 3px 0 0", transition: "height 0.4s ease" }} />
+            <div style={{ fontSize: 7, color: "#444", textAlign: "center", marginTop: 4 }}>T{i + 1}</div>
           </div>
         ))}
       </div>
@@ -308,15 +419,105 @@ function MosaicView({ deck, onHover, synergyMap, activeCard }) {
   );
 };
 
+function StackView({ deck, onHover, synergyMap, activeCard }) {
+  const related = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
+  const relatedNames = related.flatMap(s => s.cards);
+
+  const groups = {};
+  deck.mainboard.forEach(c => {
+    const cmc = c.cardData?.cmc || 0;
+    const k = cmc >= 7 ? "7+" : cmc.toString();
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(c);
+  });
+
+  const cols = ["0", "1", "2", "3", "4", "5", "6", "7+"];
+
+  return (
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "10px 0", minHeight: 400 }}>
+      {cols.map(mv => (groups[mv] || []).length > 0 && (
+        <div key={mv} style={{ minWidth: 130, flex: 1 }}>
+          <div style={{ fontSize: 10, color: "#c9a84c", textAlign: "center", marginBottom: 8, borderBottom: "1px solid #c9a84c33", paddingBottom: 4, fontFamily: "'Cinzel', serif" }}>
+            {mv} MANA
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", position: "relative" }}>
+            {groups[mv].map((c, i) => {
+              const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
+              const isRelated = relatedNames.includes(c.name);
+              return (
+                <div key={i}
+                  onMouseEnter={() => img && onHover(img, c.name)}
+                  onMouseLeave={() => onHover(null, null)}
+                  style={{
+                    position: "relative",
+                    height: 36,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    marginBottom: 2,
+                    border: isRelated ? "2px solid #c9a84c" : "1px solid #1a1a1a",
+                    boxShadow: isRelated ? "0 0 10px #c9a84c44" : "none",
+                    background: "#0a0a0a",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.transform = "translateX(5px)"; e.currentTarget.style.zIndex = 10; }}
+                  onMouseOut={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.zIndex = 1; }}
+                >
+                  {img && <img src={img} alt={c.name} style={{ width: "100%", height: 300, objectFit: "cover", objectPosition: "top", opacity: 0.6 }} />}
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(90deg, #000 20%, transparent 80%)", display: "flex", alignItems: "center", padding: "0 8px" }}>
+                    <div style={{ fontSize: 9, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <span style={{ color: "#c9a84c", fontWeight: "bold", marginRight: 4 }}>{c.qty}x</span> {c.name}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetaStats({ data, onClear }) {
+  return (
+    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>METAGAME COMPATIBILITY</div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        {data.matchups.map((m, i) => (
+          <div key={i} style={{ background: "#111", borderRadius: 6, padding: 10, borderLeft: `3px solid ${m.score >= 7 ? "#4DB87A" : m.score <= 4 ? "#E05A50" : "#c9a84c"}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: "bold", color: "#eee" }}>{m.opponent}</span>
+              <span style={{ fontSize: 11, color: m.score >= 7 ? "#4DB87A" : m.score <= 4 ? "#E05A50" : "#c9a84c" }}>{m.score}/10</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#888", marginBottom: 6, lineHeight: 1.4 }}>{m.analysis}</div>
+            <div style={{ fontSize: 9, color: "#aaa", fontStyle: "italic", borderTop: "1px solid #1a1a1a", paddingTop: 4 }}>💡 {m.advice}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Full deck display widget
-function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize }) {
+function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize, inventory, onUpdateInventory }) {
   const [deck, setDeck] = useState(initialDeck);
+  const ownedCount = (name) => inventory?.[name] || 0;
+  const missingCards = deck.mainboard.filter(c => ownedCount(c.name) < c.qty);
+  const costToComplete = missingCards.reduce((acc, c) => {
+    const p = parseFloat(c.cardData?.prices?.usd || c.cardData?.prices?.usd_foil || 0);
+    return acc + (p * (c.qty - ownedCount(c.name)));
+  }, 0);
+
   const [testHand, setTestHand] = useState(null); // null = not testing, array = hand
   const [testDeck, setTestDeck] = useState([]);   // remaining deck
   const [mullCount, setMullCount] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [exportMode, setExportMode] = useState(null); // null, "text", "arena"
-  const [viewMode, setViewMode] = useState("list"); // "list" or "mosaic"
+  const [viewMode, setViewMode] = useState("stack"); // "list", "mosaic", or "stack"
   const [sbGuide, setSbGuide] = useState(null); // { analysis: "", matchups: [] }
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [goldfishData, setGoldfishData] = useState(null);
@@ -326,6 +527,12 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   const [synergyMap, setSynergyMap] = useState(null);
   const [isIdentifyingSynergies, setIsIdentifyingSynergies] = useState(false);
   const [activeCard, setActiveCard] = useState(null);
+  const [metaData, setMetaData] = useState(null);
+  const [isAnalyzingMeta, setIsAnalyzingMeta] = useState(false);
+  const [metaStatus, setMetaStatus] = useState("");
+  const [recommendations, setRecommendations] = useState(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestTarget, setSuggestTarget] = useState("");
 
   // Sync internal deck state if the parent passes down a completely new deck object
   useEffect(() => { setDeck(initialDeck); setSynergyMap(null); }, [initialDeck]);
@@ -405,6 +612,30 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
     setIsIdentifyingSynergies(false);
   };
 
+  const handleAnalyzeMeta = async () => {
+    setIsAnalyzingMeta(true);
+    setMetaStatus("Fetching current meta...");
+    const format = totalM >= 90 ? "Commander" : "Standard";
+    const cfg = loadProviderConfig();
+    const meta = await fetchMetaDecks(format, cfg, (s) => setMetaStatus(s));
+    if (meta.decks && meta.decks.length > 0) {
+      setMetaStatus("Analyzing matchups...");
+      const result = await aiAnalyzeMatchups(deck, meta.decks, cfg, (s) => setMetaStatus(s));
+      if (result) setMetaData(result);
+    }
+    setIsAnalyzingMeta(false);
+    setMetaStatus("");
+  };
+
+  const handleSuggest = async (cardName) => {
+    setIsSuggesting(true);
+    setSuggestTarget(cardName);
+    const cfg = loadProviderConfig();
+    const res = await aiSuggestReplacement(deck, cardName, cfg);
+    if (res) setRecommendations(res);
+    setIsSuggesting(false);
+  };
+
   const activeSynergies = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
 
   return (
@@ -414,7 +645,12 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
           {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
             <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "#1a1a1a"}` }}>
               <span style={{ fontSize: 9, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{l} </span>
-              <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+                {l === "Price" && costToComplete > 0 && (
+                  <span style={{ fontSize: 8, color: "#E05A50", background: "#E05A5015", padding: "1px 4px", borderRadius: 3, border: "1px solid #E05A5033", fontWeight: "bold" }}>-${costToComplete.toFixed(0)} NEEDED</span>
+                )}
+              </div>
             </div>
           ))}
           {totalM >= 40 && lands === 0 && (
@@ -428,6 +664,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
           <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 5, border: "1px solid #1a1a1a", overflow: "hidden" }}>
             <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", border: "none", background: viewMode === "list" ? "#c9a84c22" : "transparent", color: viewMode === "list" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>LIST</button>
             <button onClick={() => setViewMode("mosaic")} style={{ padding: "4px 8px", border: "none", background: viewMode === "mosaic" ? "#c9a84c22" : "transparent", color: viewMode === "mosaic" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>MOSAIC</button>
+            <button onClick={() => setViewMode("stack")} style={{ padding: "4px 8px", border: "none", background: viewMode === "stack" ? "#c9a84c22" : "transparent", color: viewMode === "stack" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>STACK</button>
           </div>
         )}
       </div>
@@ -436,6 +673,8 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
         <div style={{ maxHeight: compact ? 300 : 520, overflowY: "auto" }}>
           {viewMode === "mosaic" ? (
             <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
+          ) : viewMode === "stack" ? (
+            <StackView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : (
             <>
               {order.map(g => groups[g] && (
@@ -446,7 +685,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
                   <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     {groups[g].map((c, i) => {
                       const isRelated = activeCard && synergyMap && synergyMap.synergies.some(s => s.cards.includes(activeCard) && s.cards.includes(c.name));
-                      return <CardRow key={i} card={c} onHover={handleHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} synergyHighlight={isRelated} />;
+                      return <CardRow key={i} card={c} onHover={handleHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} synergyHighlight={isRelated} onSuggest={handleSuggest} inventory={inventory} onUpdateInventory={onUpdateInventory} />;
                     })}
                   </div>
                 </div>
@@ -455,7 +694,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
                   <>
                     <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, margin: "12px 0 6px", fontFamily: "'Cinzel', serif" }}>SIDEBOARD ({totalS})</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                      {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} />)}
+                        {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} inventory={inventory} onUpdateInventory={onUpdateInventory} />)}
                     </div>
                   </>
                 )}
@@ -482,6 +721,8 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       {sbGuide && <SideboardGuide guide={sbGuide} onClear={() => setSbGuide(null)} />}
       {goldfishData && <GoldfishStats data={goldfishData} onClear={() => setGoldfishData(null)} />}
       {budgetSuggestions && <BudgetSuggestions data={budgetSuggestions} onClear={() => setBudgetSuggestions(null)} />}
+      {metaData && <MetaStats data={metaData} onClear={() => setMetaData(null)} />}
+      {recommendations && <RecommendationStats data={recommendations} targetCard={suggestTarget} onClear={() => { setRecommendations(null); setSuggestTarget(""); }} />}
 
       {activeSynergies.length > 0 && (
         <div style={{ marginTop: 12, padding: 12, background: "rgba(201, 168, 76, 0.05)", border: "1px solid #c9a84c33", borderRadius: 8, animation: "fadeIn 0.2s ease" }}>
@@ -577,6 +818,14 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
             {isBudgetizing ? "⏳ Analyzing..." : totalPrice > 100 ? "💸 Budgetize" : "🚀 Power Up"}
           </button>
         )}
+
+        <button
+          onClick={handleAnalyzeMeta}
+          disabled={isAnalyzingMeta}
+          style={{ ...xBtn, background: metaData ? "rgba(77, 163, 212, 0.1)" : "#0f0f0f", color: metaData ? "#4DA3D4" : "#777", borderColor: metaData ? "#4DA3D433" : "#1f1f1f" }}
+        >
+          {isAnalyzingMeta ? `⏳ ${metaStatus || "Analyzing..."}` : "📈 Meta Score"}
+        </button>
 
         <button
           onClick={handleIdentifySynergies}
@@ -733,7 +982,7 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
 
 
 
-function AIAgent({ onSaveDeck, providerCfg }) {
+function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("arcanum_chat_messages");
     return saved ? JSON.parse(saved) : [];
@@ -989,7 +1238,7 @@ function AIAgent({ onSaveDeck, providerCfg }) {
 // GUIDED BUILDER (compact — unchanged)
 // ═══════════════════════════════════════════════════════════
 
-function GuidedBuilder({ onSaveDeck, providerCfg }) {
+function GuidedBuilder({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
   const [cfg, setCfg] = useState({ format: "modern", colors: [], arch: "midrange", strat: "", meta: "", cmdr: "", budget: false });
   const [phase, setPhase] = useState("cfg");
   const [status, setStatus] = useState("");
@@ -1129,7 +1378,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
 
 
 
-function Arena({ vault, setVault, providerCfg }) {
+function Arena({ vault, setVault, providerCfg, inventory, onUpdateInventory }) {
   const [selected, setSelected] = useState([]);
   const [bestOf, setBestOf] = useState(3);
   const [matchCount, setMatchCount] = useState(1);
@@ -1819,6 +2068,8 @@ export default function MTGDeckArchitect() {
   const [providerCfg, setProviderCfg] = useState(loadProviderConfig());
   const [showSettings, setShowSettings] = useState(false);
   const [compareIds, setCompareIds] = useState([]); // Array of 2 IDs
+  const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem("arcanum_collection") || "{}"));
+  useEffect(() => { localStorage.setItem("arcanum_collection", JSON.stringify(inventory)); }, [inventory]);
   const activeProvider = AI_PROVIDERS.find(p => p.id === providerCfg.providerId) || AI_PROVIDERS[0];
 
   const handleSaveDeck = (deck, existingId = null) => {
@@ -1861,6 +2112,10 @@ export default function MTGDeckArchitect() {
     setSaveModal(null); setSaveName("");
   };
 
+  const handleUpdateInventory = (name, delta) => {
+    setInventory(prev => ({ ...prev, [name]: Math.max((prev[name] || 0) + delta, 0) }));
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#ddd", fontFamily: "'Crimson Text', Georgia, serif" }}>
       <style>{`
@@ -1890,7 +2145,8 @@ export default function MTGDeckArchitect() {
               { id: "agent", label: "✦ AI Agent" },
               { id: "builder", label: "⚙ Guided" },
               { id: "arena", label: `⚔ Arena${vault.length ? ` (${vault.length})` : ""}` },
-              { id: "collection", label: `Deck Collection` },
+              { id: "vault", label: `Deck Vault` },
+              { id: "inventory", label: `🎒 Collection` },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
                 padding: "7px 16px", border: "none", cursor: "pointer",
@@ -1919,10 +2175,10 @@ export default function MTGDeckArchitect() {
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "0 16px" }}>
-        {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
-        {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} />}
-        {tab === "arena" && <Arena vault={vault} setVault={setVault} providerCfg={providerCfg} />}
-        {tab === "collection" && (
+        {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
+        {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
+        {tab === "arena" && <Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
+        {tab === "vault" && (
           <div style={{ padding: 20 }}>
             {compareIds.length === 2 ? (
               <div style={{ animation: "fadeIn 0.3s ease" }}>

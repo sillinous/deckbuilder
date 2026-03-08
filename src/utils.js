@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, VAULT_KEY, SYNERGY_SYSTEM } from "./constants";
+import { AI_PROVIDERS, VAULT_KEY, SYNERGY_SYSTEM, META_SYSTEM, MATCHUP_SYSTEM, RECOMMEND_SYSTEM } from "./constants";
 
 // ═══════════════════════════════════════════════════════════
 // SCRYFALL API
@@ -220,23 +220,91 @@ export function exportDeck(deck) {
   a.click();
 }
 
-export function runGoldfishSim(deck, iterations = 1000) {
+export function runGoldfishSim(deck, iterations = 500) {
   const deckArr = generateDeckArray(deck);
   const lands = deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).map(c => c.name);
-  const results = { avgLandsTurn3: 0, avgLandsTurn4: 0, turn3PlayPct: 0, manaScrewPct: 0 };
+  const creatures = deck.mainboard.filter(c => !c.cardData?.type_line?.includes("Land")).map(c => ({
+    name: c.name,
+    cmc: c.cardData?.cmc || 0,
+    power: parseInt(c.cardData?.power) || c.cardData?.cmc || 0
+  }));
+
+  const killTurns = [];
+  const turnData = {
+    manaScrew: 0,
+    turn3Land: 0,
+    turn4Land: 0,
+    dpt: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // Damage Per Turn (Avg)
+  };
+
   for (let i = 0; i < iterations; i++) {
-    const hand = drawHand(deckArr, 7);
-    const landInHand = hand.filter(c => lands.includes(c)).length;
-    results.avgLandsTurn3 += landInHand + 1.5;
-    results.avgLandsTurn4 += landInHand + 2.0;
-    if (landInHand >= 2) results.turn3PlayPct++;
-    if (landInHand < 2) results.manaScrewPct++;
+    const shuf = shuffleArray(deckArr);
+    let hand = shuf.slice(0, 7);
+    let library = shuf.slice(7);
+    let battlefield = [];
+    let landCount = 0;
+    let totalDamage = 0;
+    let killed = false;
+
+    // Simplify: hand is just strings, we need to know what they are
+    const getCardInfo = (name) => {
+      if (lands.includes(name)) return { type: "land" };
+      return creatures.find(c => c.name === name) || { type: "spell", cmc: 0, power: 0 };
+    };
+
+    for (let turn = 1; turn <= 10; turn++) {
+      if (turn > 1) {
+        if (library.length > 0) hand.push(library.shift());
+      }
+
+      // 1. Play Land
+      const landIdx = hand.findIndex(n => getCardInfo(n).type === "land");
+      if (landIdx !== -1) {
+        landCount++;
+        hand.splice(landIdx, 1);
+      }
+
+      // Stats
+      if (turn === 3) turnData.turn3Land += landCount;
+      if (turn === 4) turnData.turn4Land += landCount;
+      if (turn === 3 && landCount < 2) turnData.manaScrew++;
+
+      // 2. Battle (Summoning Sickness check)
+      let turnDamage = 0;
+      battlefield.forEach(c => {
+        if (c.turnPlayed < turn) turnDamage += c.power;
+      });
+      totalDamage += turnDamage;
+      turnData.dpt[turn - 1] += turnDamage;
+
+      if (totalDamage >= 20 && !killed) {
+        killTurns.push(turn);
+        killed = true;
+      }
+
+      // 3. Play highest CMC creature possible
+      let availableMana = landCount;
+      while (availableMana > 0) {
+        let playable = hand.map((n, idx) => ({ ...getCardInfo(n), idx })).filter(c => c.type !== "land" && c.cmc <= availableMana).sort((a, b) => b.cmc - a.cmc);
+        if (playable.length > 0) {
+          const boss = playable[0];
+          battlefield.push({ ...boss, turnPlayed: turn });
+          availableMana -= boss.cmc;
+          hand.splice(boss.idx, 1);
+        } else break;
+      }
+    }
   }
+
+  const avgKill = killTurns.length ? (killTurns.reduce((a, b) => a + b, 0) / killTurns.length).toFixed(1) : ">10";
+  const reliability = Math.round(((iterations - turnData.manaScrew) / iterations) * 100);
+
   return {
-    avgLandsTurn3: (results.avgLandsTurn3 / iterations).toFixed(2),
-    avgLandsTurn4: (results.avgLandsTurn4 / iterations).toFixed(2),
-    turn3PlayPct: Math.round((results.turn3PlayPct / iterations) * 100),
-    manaScrewPct: Math.round((results.manaScrewPct / iterations) * 100),
+    avgKillTurn: avgKill,
+    reliability,
+    avgLandsTurn3: (turnData.turn3Land / iterations).toFixed(1),
+    avgLandsTurn4: (turnData.turn4Land / iterations).toFixed(1),
+    dpt: turnData.dpt.map(d => (d / iterations).toFixed(1))
   };
 }
 
@@ -400,4 +468,34 @@ export async function aiIdentifySynergies(deck, providerCfg) {
     const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
     return jsonMatch ? JSON.parse(jsonMatch[0]) : { synergies: [] };
   } catch { return { synergies: [] }; }
+}
+
+export async function fetchMetaDecks(format, providerCfg, onStatus) {
+  try {
+    const res = await runToolLoop(META_SYSTEM, [{ role: "user", content: `Search for the current top 8 competitive Tier 1 decks for the ${format} format and summarize them.` }], providerCfg, onStatus);
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : { decks: [] };
+  } catch { return { decks: [] }; }
+}
+
+export async function aiAnalyzeMatchups(deck, metaDecks, providerCfg, onStatus) {
+  try {
+    const list = deckToText(deck);
+    const metaStr = JSON.stringify(metaDecks);
+    const res = await runToolLoop(MATCHUP_SYSTEM, [{ role: "user", content: `[DECKLIST]:\n${list}\n\n[META_DECKS]:\n${metaStr}` }], providerCfg, onStatus);
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : { matchups: [] };
+  } catch { return { matchups: [] }; }
+}
+
+export async function aiSuggestReplacement(deck, targetCard, providerCfg) {
+  try {
+    const list = deckToText(deck);
+    const res = await runToolLoop(RECOMMEND_SYSTEM, [{ role: "user", content: `[DECKLIST]:\n${list}\n\n[TARGET_CARD]: ${targetCard}` }], providerCfg, () => { });
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : { recommendations: [] };
+  } catch { return { recommendations: [] }; }
 }
