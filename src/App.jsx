@@ -38,7 +38,8 @@ import {
   SIM_SYSTEM,
   VAULT_KEY,
   IMPORT_ANALYSIS_PROMPT,
-  xBtn
+  xBtn,
+  GLASS_STYLE
 } from "./constants";
 
 // ═══════════════════════════════════════════════════════════
@@ -97,6 +98,33 @@ async function aiEnrichDeck(parsed, setStatus) {
   };
 }
 
+
+function ManaBackground({ colors }) {
+  const hexMap = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#222" };
+  const activeBlobs = colors && colors.length > 0 ? colors : ["C"];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: -1, overflow: "hidden", background: "#050505" }}>
+      <svg style={{ width: "100%", height: "100%", opacity: 0.3, filter: "blur(100px)" }}>
+        {activeBlobs.map((c, i) => (
+          <circle
+            key={i}
+            cx={`${25 + (i * 50) / activeBlobs.length}%`}
+            cy={`${35 + (i * 30) / activeBlobs.length}%`}
+            r="35%"
+            fill={hexMap[c] || hexMap.C}
+            style={{
+              animation: `orbital ${20 + i * 5}s linear infinite`,
+              transformOrigin: "center",
+              opacity: 0.4,
+            }}
+          />
+        ))}
+      </svg>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at center, transparent, #050505 90%)" }} />
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════
 // SHARED UI COMPONENTS
@@ -171,21 +199,45 @@ function ManaAnalytics({ data, onAutoFix }) {
   );
 }
 
-function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onSuggest, inventory, onUpdateInventory }) {
+function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onSuggest, inventory, onUpdateInventory, onCtx }) {
+  const tiltRef = useRef(null);
+  const handleMove = (e) => {
+    if (!tiltRef.current) return;
+    const rect = tiltRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    tiltRef.current.style.transform = `perspective(1000px) rotateY(${x * 15}deg) rotateX(${y * -15}deg) scale(1.02)`;
+  };
+  const handleLeave = () => {
+    if (!tiltRef.current) return;
+    tiltRef.current.style.transform = `perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1)`;
+    onHover(null, null);
+  };
+
   const owned = inventory?.[card.name] || 0;
   const isMissing = owned < card.qty;
   const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease",
-      background: isMissing ? "rgba(224, 90, 80, 0.05)" : synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
-      boxShadow: isMissing ? "inset 2px 0 0 #E05A50" : synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
-      transition: "all 0.3s ease",
-      borderBottom: "1px solid #1a1a1a33"
-    }}
-      onMouseEnter={() => img && onHover(img, card.name)} onMouseLeave={() => onHover(null, null)}>
+    <div
+      ref={tiltRef}
+      className="lux-card"
+      style={{
+        display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease",
+        background: isMissing ? "rgba(224, 90, 80, 0.05)" : synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
+        boxShadow: isMissing ? "inset 2px 0 0 #E05A50" : synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
+        transition: "all 0.1s ease-out",
+        borderBottom: "1px solid #1a1a1a33",
+        willChange: "transform"
+      }}
+      onContextMenu={e => {
+        if (onCtx) {
+          e.preventDefault();
+          onCtx({ x: e.clientX, y: e.clientY, card });
+        }
+      }}
+      onMouseMove={handleMove} onMouseEnter={() => img && onHover(img, card.name)} onMouseLeave={handleLeave}>
       <div style={{ width: 18, fontSize: 10, color: isMissing ? "#E05A50" : "#777", fontWeight: 700 }}>{card.qty}x</div>
       <div style={{ flex: 1, fontSize: 11, color: isMissing ? "#eee" : "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
       <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
@@ -235,7 +287,7 @@ function InventoryManager({ inventory, onUpdate }) {
   const owned = Object.entries(inventory).filter(([_, qty]) => qty > 0);
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, padding: 25, animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 30 }}>
         <div>
           <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, marginBottom: 16, fontFamily: "'Cinzel', serif" }}>ADD TO COLLECTION</div>
@@ -284,7 +336,7 @@ function InventoryManager({ inventory, onUpdate }) {
 
 function RecommendationStats({ data, onClear, targetCard }) {
   return (
-    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 8 }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16, position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>🔮 RECOMMENDATIONS FOR: {targetCard.toUpperCase()}</div>
         <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
@@ -306,7 +358,7 @@ function RecommendationStats({ data, onClear, targetCard }) {
 
 function SideboardGuide({ guide, onClear }) {
   return (
-    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c33" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>AI SIDEBOARD GUIDE</div>
         <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
@@ -340,7 +392,7 @@ function SideboardGuide({ guide, onClear }) {
 function GoldfishStats({ data, onClear }) {
   const maxDpt = Math.max(...data.dpt.map(Number), 1);
   return (
-    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #c9a84c33", position: "relative" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16, position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>ADVANCED GOLDFISH (500 iterations)</div>
         <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕</button>
@@ -372,7 +424,7 @@ function GoldfishStats({ data, onClear }) {
 
 function BudgetSuggestions({ data, onClear }) {
   return (
-    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", borderRadius: 8, border: "1px solid #4DB87A33" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16, border: "1px solid #4DB87A33" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#4DB87A", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>BUDGET / POWER ADVICE</div>
         <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
@@ -393,8 +445,26 @@ function BudgetSuggestions({ data, onClear }) {
 }
 
 function MosaicView({ deck, onHover, synergyMap, activeCard }) {
+  const tiltRefs = useRef({});
   const related = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
   const relatedNames = related.flatMap(s => s.cards);
+
+  const handleMove = (e, name) => {
+    const el = tiltRefs.current[name];
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    el.style.transform = `perspective(1000px) rotateY(${x * 12}deg) rotateX(${y * -12}deg) scale(1.05)`;
+    el.style.zIndex = 10;
+  };
+  const handleLeave = (name) => {
+    const el = tiltRefs.current[name];
+    if (!el) return;
+    el.style.transform = `perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1)`;
+    el.style.zIndex = 1;
+    onHover(null, null);
+  };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, padding: "10px 0" }}>
@@ -402,7 +472,11 @@ function MosaicView({ deck, onHover, synergyMap, activeCard }) {
         const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
         const isRelated = relatedNames.includes(c.name);
         return (
-          <div key={i} onMouseEnter={() => img && onHover(img, c.name)} onMouseLeave={() => onHover(null, null)}
+          <div key={i}
+            ref={el => tiltRefs.current[c.name + i] = el}
+            onMouseMove={(e) => handleMove(e, c.name + i)}
+            onMouseEnter={() => img && onHover(img, c.name)}
+            onMouseLeave={() => handleLeave(c.name + i)}
             style={{
               position: "relative", aspectRatio: "0.717", borderRadius: 6, overflow: "hidden", background: "#111",
               border: isRelated ? "2px solid #c9a84c" : "1px solid #222",
@@ -420,8 +494,26 @@ function MosaicView({ deck, onHover, synergyMap, activeCard }) {
 };
 
 function StackView({ deck, onHover, synergyMap, activeCard }) {
+  const tiltRefs = useRef({});
   const related = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
   const relatedNames = related.flatMap(s => s.cards);
+
+  const handleMove = (e, id) => {
+    const el = tiltRefs.current[id];
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    el.style.transform = `perspective(1000px) rotateY(${x * 12}deg) rotateX(${y * -12}deg) translateX(10px)`;
+    el.style.zIndex = 100;
+  };
+  const handleLeave = (id) => {
+    const el = tiltRefs.current[id];
+    if (!el) return;
+    el.style.transform = `perspective(1000px) rotateY(0deg) rotateX(0deg) translateX(0)`;
+    el.style.zIndex = 1;
+    onHover(null, null);
+  };
 
   const groups = {};
   deck.mainboard.forEach(c => {
@@ -446,8 +538,10 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
               const isRelated = relatedNames.includes(c.name);
               return (
                 <div key={i}
+                  ref={el => tiltRefs.current[c.name + i] = el}
+                  onMouseMove={(e) => handleMove(e, c.name + i)}
                   onMouseEnter={() => img && onHover(img, c.name)}
-                  onMouseLeave={() => onHover(null, null)}
+                  onMouseLeave={() => handleLeave(c.name + i)}
                   style={{
                     position: "relative",
                     height: 36,
@@ -481,7 +575,7 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
 
 function MetaStats({ data, onClear }) {
   return (
-    <div style={{ marginTop: 20, padding: 16, background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 8 }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16, position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>METAGAME COMPATIBILITY</div>
         <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕ Clear</button>
@@ -503,7 +597,7 @@ function MetaStats({ data, onClear }) {
 }
 
 // Full deck display widget
-function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize, inventory, onUpdateInventory }) {
+function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize, inventory, onUpdateInventory, onCtx }) {
   const [deck, setDeck] = useState(initialDeck);
   const ownedCount = (name) => inventory?.[name] || 0;
   const missingCards = deck.mainboard.filter(c => ownedCount(c.name) < c.qty);
@@ -639,16 +733,16 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   const activeSynergies = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
 
   return (
-    <div style={{ background: "#090909", border: "1px solid #181818", borderRadius: 10, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
-            <div key={l} style={{ padding: "4px 10px", background: "#0f0f0f", borderRadius: 5, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "#1a1a1a"}` }}>
-              <span style={{ fontSize: 9, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{l} </span>
+            <div key={l} style={{ padding: "6px 14px", background: "rgba(0,0,0,0.4)", borderRadius: 8, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "rgba(255,255,255,0.05)"}`, boxShadow: "0 4px 15px rgba(0,0,0,0.2)", transition: "all 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
+              <div style={{ fontSize: 9, color: "#666", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 2, fontFamily: "'Cinzel', serif" }}>{l}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 13, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif" }}>{v}</span>
+                <span style={{ fontSize: 14, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{v}</span>
                 {l === "Price" && costToComplete > 0 && (
-                  <span style={{ fontSize: 8, color: "#E05A50", background: "#E05A5015", padding: "1px 4px", borderRadius: 3, border: "1px solid #E05A5033", fontWeight: "bold" }}>-${costToComplete.toFixed(0)} NEEDED</span>
+                  <span style={{ fontSize: 9, color: "#E05A50", background: "#E05A5015", padding: "1px 6px", borderRadius: 4, border: "1px solid #E05A5033", fontWeight: "bold" }}>-${costToComplete.toFixed(0)} NEEDED</span>
                 )}
               </div>
             </div>
@@ -685,7 +779,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
                   <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     {groups[g].map((c, i) => {
                       const isRelated = activeCard && synergyMap && synergyMap.synergies.some(s => s.cards.includes(activeCard) && s.cards.includes(c.name));
-                      return <CardRow key={i} card={c} onHover={handleHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} synergyHighlight={isRelated} onSuggest={handleSuggest} inventory={inventory} onUpdateInventory={onUpdateInventory} />;
+                      return <CardRow key={i} card={c} onHover={handleHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} synergyHighlight={isRelated} onSuggest={handleSuggest} inventory={inventory} onUpdateInventory={onUpdateInventory} onCtx={onCtx} />;
                     })}
                   </div>
                 </div>
@@ -694,7 +788,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
                   <>
                     <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, margin: "12px 0 6px", fontFamily: "'Cinzel', serif" }}>SIDEBOARD ({totalS})</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} inventory={inventory} onUpdateInventory={onUpdateInventory} />)}
+                        {deck.sideboard.map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} inventory={inventory} onUpdateInventory={onUpdateInventory} onCtx={onCtx} />)}
                     </div>
                   </>
                 )}
@@ -924,7 +1018,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
 // AGENT CHAT MESSAGE
 // ═══════════════════════════════════════════════════════════
 
-function AgentMessage({ msg, onHover, onSaveDeck }) {
+function AgentMessage({ msg, onHover, onSaveDeck, onCtx }) {
   if (msg.role === "user") {
     return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14, animation: "fadeIn 0.25s ease" }}>
@@ -956,13 +1050,14 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
           </div>
         )}
         {msg.loading && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0" }}>
-            <div style={{ display: "flex", gap: 4 }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "#c9a84c", animation: `pulse 1.4s ease ${i * 0.2}s infinite` }} />
-              ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 10, border: "1px solid rgba(255,168,76,0.05)", animation: "fadeIn 0.5s ease" }}>
+            <div style={{ position: "relative", width: 20, height: 20 }}>
+              <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", animation: "orbital 4s linear infinite" }}>
+                <path d="M50 5 L50 20 M85 35 L72 42 M85 65 L72 58 M50 95 L50 80 M15 65 L28 58 M15 35 L28 42" stroke="#c9a84c" strokeWidth="6" strokeLinecap="round" />
+              </svg>
+              <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle, #c9a84c33 0%, transparent 70%)", animation: "glow 2s ease-in-out infinite" }} />
             </div>
-            <span style={{ fontSize: 11, color: "#555", fontStyle: "italic" }}>{msg.status || "Thinking..."}</span>
+            <span style={{ fontSize: 11, color: "#888", fontStyle: "italic", letterSpacing: 0.5, fontFamily: "'Cinzel', serif" }}>{msg.status || "Channeling the Arcanum..."}</span>
           </div>
         )}
         {msg.content && (
@@ -970,7 +1065,7 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
             {msg.content}
           </div>
         )}
-        {msg.deck && <div style={{ marginTop: 12 }}><DeckDisplay deck={msg.deck} onHover={onHover} onSave={onSaveDeck} onGenerateGuide={msg.onGenerateGuide} /></div>}
+        {msg.deck && <div style={{ marginTop: 12 }}><DeckDisplay deck={msg.deck} onHover={onHover} onSave={onSaveDeck} onGenerateGuide={msg.onGenerateGuide} onCtx={onCtx} /></div>}
       </div>
     </div>
   );
@@ -982,7 +1077,7 @@ function AgentMessage({ msg, onHover, onSaveDeck }) {
 
 
 
-function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
+function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx }) {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("arcanum_chat_messages");
     return saved ? JSON.parse(saved) : [];
@@ -1035,29 +1130,29 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
       updateStatus("Consulting card database and metagame data...");
       let resp;
       for (let attempt = 0; attempt < 3; attempt++) {
-        if (attempt > 0) { updateStatus(`Rate limited — retrying in ${3 * Math.pow(2, attempt)}s...`); await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt))); }
+        if (attempt > 0) {
+          updateStatus(`Transient error — retrying in ${3 * Math.pow(2, attempt)}s...`);
+          await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt)));
+        }
+
+        // Context Optimization: Keep only the last 15 messages to prevent payload bloat
+        const optimizedHistory = historyRef.current.slice(-15);
+
         resp = await fetch("/api/chat", {
           method: "POST", headers: getApiHeaders(providerCfg),
           body: JSON.stringify({
             max_tokens: 8000,
             system: AGENT_SYSTEM,
-            tools: [{
-              name: "web_search",
-              description: "Search the web for the latest MTG metagame, tournament results, and deck prices.",
-              input_schema: {
-                type: "object",
-                properties: {
-                  query: { type: "string", description: "The search query." }
-                },
-                required: ["query"]
-              }
-            }],
-            messages: historyRef.current
+            messages: optimizedHistory
           }),
         });
-        if (resp.status !== 429) break;
+        if (![429, 502, 503, 504].includes(resp.status)) break;
       }
-      if (!resp.ok) throw new Error(`API ${resp.status}`);
+
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API ${resp.status}`);
+      }
       let data = await resp.json();
 
       let finalData = data;
@@ -1116,7 +1211,11 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
           }),
         });
 
-        if (!contResp.ok) break;
+        if (!contResp.ok) {
+          const errorData = await contResp.json().catch(() => ({}));
+          console.error("Tool continuation error:", errorData);
+          break;
+        }
         finalData = await contResp.json();
         allContent = [...allContent, ...(finalData.content || [])];
       }
@@ -1143,14 +1242,17 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
       }
     } catch (err) {
       console.error(err);
-      setMessages(prev => prev.map(m => m._id === lid ? { role: "assistant", content: `Something went wrong: ${err.message}. Try again.` } : m));
+      const errorMsg = err.message.includes("502")
+        ? "The Weaver's connection flickered (502). The Arcanum is briefly unstable—please try sending your request again."
+        : `Something went wrong: ${err.message}. Try again.`;
+      setMessages(prev => prev.map(m => m._id === lid ? { role: "assistant", content: errorMsg } : m));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 110px)", position: "relative" }}>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, display: "flex", flexDirection: "column", height: "calc(100vh - 110px)", position: "relative", padding: "0 16px" }}>
       {messages.length > 0 && (
         <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
           <button onClick={resetChat} style={{ ...xBtn, fontSize: 9, background: "#0d0d0dcc", backdropFilter: "blur(4px)", padding: "4px 8px", opacity: 0.8 }} onMouseOver={e => e.currentTarget.style.opacity = 1} onMouseOut={e => e.currentTarget.style.opacity = 0.8}>
@@ -1186,7 +1288,7 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
             </div>
           </div>
         )}
-        {messages.map((msg, i) => <AgentMessage key={i} msg={msg} onHover={setHoveredCard} onSaveDeck={onSaveDeck} />)}
+        {messages.map((msg, i) => <AgentMessage key={i} msg={msg} onHover={setHoveredCard} onSaveDeck={onSaveDeck} onCtx={onCtx} />)}
         <div ref={chatEndRef} />
       </div>
       {hoveredCard && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none", animation: "fadeIn 0.12s ease" }}><img src={hoveredCard} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
@@ -1238,7 +1340,7 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
 // GUIDED BUILDER (compact — unchanged)
 // ═══════════════════════════════════════════════════════════
 
-function GuidedBuilder({ onSaveDeck, providerCfg, inventory, onUpdateInventory }) {
+function GuidedBuilder({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx }) {
   const [cfg, setCfg] = useState({ format: "modern", colors: [], arch: "midrange", strat: "", meta: "", cmdr: "", budget: false });
   const [phase, setPhase] = useState("cfg");
   const [status, setStatus] = useState("");
@@ -1333,7 +1435,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
           <button onClick={() => {setPhase("cfg");setDeck(null);}} style={xBtn}>← Rebuild</button>
         </div>
       </div>
-      <DeckDisplay deck={deck} onHover={setHov} onSave={onSaveDeck} onGenerateGuide={handleGenerateGuide} onBudgetize={handleBudgetize} />
+      <DeckDisplay deck={deck} onHover={setHov} onSave={onSaveDeck} onGenerateGuide={handleGenerateGuide} onBudgetize={handleBudgetize} onCtx={onCtx} />
       {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
       {deck.analysis && <div style={{ marginTop: 14, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #1a1a1a" }}>
         <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>ANALYSIS</div>
@@ -1378,7 +1480,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
 
 
 
-function Arena({ vault, setVault, providerCfg, inventory, onUpdateInventory }) {
+function Arena({ vault, setVault, providerCfg, inventory, onUpdateInventory, onCtx }) {
   const [selected, setSelected] = useState([]);
   const [bestOf, setBestOf] = useState(3);
   const [matchCount, setMatchCount] = useState(1);
@@ -1706,12 +1808,12 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
           <span style={{ fontSize: 9, color: "#333" }}>Select 2-8 decks for battle</span>
         </div>
         {vault.length === 0 ? (
-          <div style={{ padding: 30, textAlign: "center", background: "#0c0c0c", borderRadius: 8, border: "1px solid #181818" }}>
-            <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.3 }}>💎</div>
-            <div style={{ fontSize: 12, color: "#444", fontFamily: "'Crimson Text', serif" }}>Your vault is empty. Build decks with the AI Agent or Guided Builder, then save them here.</div>
+          <div className="glass-panel" style={{ ...GLASS_STYLE, padding: 40, textAlign: "center", background: "rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3, filter: "drop-shadow(0 0 10px #c9a84c33)" }}>💎</div>
+            <div style={{ fontSize: 13, color: "#666", fontFamily: "'Crimson Text', serif", maxWidth: 400, margin: "0 auto", lineHeight: 1.6 }}>Your vault is empty. Build decks with the AI Agent or Guided Builder, then save them here.</div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
             {vault.map(entry => <VaultCard key={entry.id} entry={entry} />)}
           </div>
         )}
@@ -1719,29 +1821,29 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
 
       {/* Config */}
       {selected.length >= 2 && (
-        <div style={{ background: "#0c0c0c", border: "1px solid #181818", borderRadius: 8, padding: 14, marginBottom: 16 }}>
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="glass-panel" style={{ ...GLASS_STYLE, background: "rgba(201,168,76,0.03)", padding: 18, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 9, color: "#444", marginBottom: 4 }}>BEST OF</div>
-              <div style={{ display: "flex", gap: 4 }}>
+              <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>MATCH PARAMETERS</div>
+              <div style={{ display: "flex", gap: 6 }}>
                 {[1, 3, 5].map(n => (
-                  <button key={n} onClick={() => setBestOf(n)} style={{ padding: "5px 12px", borderRadius: 4, border: `1px solid ${bestOf === n ? "#c9a84c44" : "#1a1a1a"}`, background: bestOf === n ? "#c9a84c10" : "#0a0a0a", color: bestOf === n ? "#c9a84c" : "#555", cursor: "pointer", fontSize: 11, fontFamily: "'Cinzel', serif" }}>Bo{n}</button>
+                  <button key={n} onClick={() => setBestOf(n)} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${bestOf === n ? "#c9a84c66" : "rgba(255,255,255,0.05)"}`, background: bestOf === n ? "rgba(201,168,76,0.15)" : "transparent", color: bestOf === n ? "#c9a84c" : "#666", cursor: "pointer", fontSize: 11, fontFamily: "'Cinzel', serif", transition: "all 0.2s" }}>Bo{n}</button>
                 ))}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 9, color: "#444", marginBottom: 4 }}>MATCHES PER PAIR</div>
-              <div style={{ display: "flex", gap: 4 }}>
+              <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>MATCHES PER PAIR</div>
+              <div style={{ display: "flex", gap: 6 }}>
                 {[1, 3, 5, 10].map(n => (
-                  <button key={n} onClick={() => setMatchCount(n)} style={{ padding: "5px 12px", borderRadius: 4, border: `1px solid ${matchCount === n ? "#c9a84c44" : "#1a1a1a"}`, background: matchCount === n ? "#c9a84c10" : "#0a0a0a", color: matchCount === n ? "#c9a84c" : "#555", cursor: "pointer", fontSize: 11, fontFamily: "'Cinzel', serif" }}>×{n}</button>
+                  <button key={n} onClick={() => setMatchCount(n)} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${matchCount === n ? "#c9a84c66" : "rgba(255,255,255,0.05)"}`, background: matchCount === n ? "rgba(201,168,76,0.15)" : "transparent", color: matchCount === n ? "#c9a84c" : "#666", cursor: "pointer", fontSize: 11, fontFamily: "'Cinzel', serif", transition: "all 0.2s" }}>×{n}</button>
                 ))}
               </div>
             </div>
             <div style={{ flex: 1 }} />
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 9, color: "#444", marginBottom: 4 }}>{generatePairs().length} pair(s) × {matchCount} = {generatePairs().length * matchCount} total matches</div>
-              <button onClick={runSimulation} disabled={running} style={{ padding: "10px 24px", background: running ? "#1a1a1a" : "linear-gradient(135deg, #E05A50, #c9a84c)", border: "none", borderRadius: 6, cursor: running ? "not-allowed" : "pointer", fontFamily: "'Cinzel', serif", fontSize: 12, fontWeight: 700, color: running ? "#444" : "#0a0a0a", letterSpacing: 2 }}>
-                {running ? "SIMULATING..." : "⚔ BEGIN BATTLE ⚔"}
+              <div style={{ fontSize: 10, color: "#555", marginBottom: 6, fontStyle: "italic" }}>{generatePairs().length} pair(s) · {generatePairs().length * matchCount} total matches</div>
+              <button onClick={runSimulation} disabled={running} style={{ padding: "12px 32px", background: running ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #c9a84c, #f0d68a)", border: "none", borderRadius: 8, cursor: running ? "not-allowed" : "pointer", fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, color: "#0a0a0a", letterSpacing: 3, boxShadow: "0 10px 25px rgba(201,168,76,0.2)", transition: "all 0.3s cubic-bezier(0.19, 1, 0.22, 1)" }} onMouseOver={e => !running && (e.currentTarget.style.transform = "translateY(-2px) scale(1.02)")} onMouseOut={e => !running && (e.currentTarget.style.transform = "translateY(0) scale(1)")}>
+                {running ? "SIMULATING..." : "✦ BEGIN BATTLE ✦"}
               </button>
             </div>
           </div>
@@ -2070,7 +2172,20 @@ export default function MTGDeckArchitect() {
   const [compareIds, setCompareIds] = useState([]); // Array of 2 IDs
   const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem("arcanum_collection") || "{}"));
   useEffect(() => { localStorage.setItem("arcanum_collection", JSON.stringify(inventory)); }, [inventory]);
-  const activeProvider = AI_PROVIDERS.find(p => p.id === providerCfg.providerId) || AI_PROVIDERS[0];
+  const [activeColors, setActiveColors] = useState([]);
+  const [globalPulse, setGlobalPulse] = useState(null); // { type: "success" | "error" }
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, card }
+
+  const triggerPulse = (type) => {
+    setGlobalPulse(type);
+    setTimeout(() => setGlobalPulse(null), 1000);
+  };
+
+  // Sync colors whenever vault changes or a deck is loaded
+  useEffect(() => {
+    const active = vault.find(d => tab === "agent" ? false : d.id === tab); // Simplification for now
+    if (active) setActiveColors(active.colors);
+  }, [tab, vault]);
 
   const handleSaveDeck = (deck, existingId = null) => {
     setSaveModal({ ...deck, _existingId: existingId });
@@ -2080,6 +2195,7 @@ export default function MTGDeckArchitect() {
     if (existingId) {
       const existing = vault.find(d => d.id === existingId);
       setSaveName(existing?.name || (colorNames ? `${colorNames} Deck` : "New Deck"));
+      triggerPulse("success");
     } else {
       setSaveName(colorNames ? `${colorNames} Deck` : "New Deck");
     }
@@ -2110,6 +2226,7 @@ export default function MTGDeckArchitect() {
 
     setVault(nv); saveVault(nv);
     setSaveModal(null); setSaveName("");
+    triggerPulse("success");
   };
 
   const handleUpdateInventory = (name, delta) => {
@@ -2117,7 +2234,17 @@ export default function MTGDeckArchitect() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#ddd", fontFamily: "'Crimson Text', Georgia, serif" }}>
+    <div style={{ minHeight: "100vh", color: "#ddd", fontFamily: "'Crimson Text', Georgia, serif", position: "relative" }}>
+      <ManaBackground colors={activeColors} />
+
+      {/* Global State Pulses */}
+      {globalPulse && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10000, pointerEvents: "none",
+          background: globalPulse === "success" ? "radial-gradient(circle, rgba(77, 184, 122, 0.1) 0%, transparent 70%)" : "radial-gradient(circle, rgba(224, 90, 80, 0.1) 0%, transparent 70%)",
+          animation: "pulse 1s ease-out forwards"
+        }} />
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2125,35 +2252,53 @@ export default function MTGDeckArchitect() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
         ::selection { background: #c9a84c33; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        textarea:disabled { opacity: 0.4; }
-        button:hover { filter: brightness(1.1); }
+        @keyframes orbital { from { transform: rotate(0deg) translateX(10%) rotate(0deg); } to { transform: rotate(360deg) translateX(10%) rotate(-360deg); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(201, 168, 76, 0.1); } 50% { box-shadow: 0 0 40px rgba(201, 168, 76, 0.3); } }
+        .lux-card { transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1); }
+        .lux-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 15px 35px rgba(0,0,0,0.5); border-color: rgba(201, 168, 76, 0.3); }
+        .glass-panel { background: rgba(10, 10, 10, 0.6) !important; backdrop-filter: blur(20px) saturate(180%) !important; WebkitBackdropFilter: blur(20px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 12px !important; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
+        @keyframes inkDissolve {
+          0% { filter: blur(20px) contrast(200%); opacity: 0; transform: scale(1.02); }
+          100% { filter: blur(0) contrast(100%); opacity: 1; transform: scale(1); }
+        }
+        @keyframes successPulse {
+          0% { opacity: 0; background: radial-gradient(circle, rgba(77, 184, 122, 0.4) 0%, transparent 70%); }
+          50% { opacity: 1; transform: scale(1.1); }
+          100% { opacity: 0; transform: scale(1.4); }
+        }
+        @keyframes errorPulse {
+          0% { opacity: 0; background: radial-gradient(circle, rgba(224, 90, 80, 0.4) 0%, transparent 70%); }
+          50% { opacity: 1; transform: scale(1.1); }
+          100% { opacity: 0; transform: scale(1.4); }
+        }
       `}</style>
 
       {/* Header */}
-      <div style={{ padding: "12px 20px", borderBottom: "1px solid #131313", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="glass-panel" style={{ ...GLASS_STYLE, margin: "10px 10px 20px", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 10, zIndex: 1000 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ fontFamily: "'Cinzel', serif", fontSize: 20, fontWeight: 700, background: "linear-gradient(135deg, #c9a84c, #f0d68a, #c9a84c)", backgroundSize: "200% 100%", animation: "shimmer 8s ease infinite", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 3 }}>✦ ARCANUM</h1>
-          <span style={{ color: "#1a1a1a", fontSize: 16 }}>|</span>
-          <span style={{ color: "#333", fontSize: 11, fontStyle: "italic" }}>Autonomous MTG Deck Architect</span>
+          <span style={{ color: "rgba(255,255,255,0.05)", fontSize: 16 }}>|</span>
+          <span style={{ color: "#555", fontSize: 11, fontStyle: "italic" }}>Autonomous MTG Deck Architect</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 7, border: "1px solid #181818", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: 10, padding: 3, border: "1px solid rgba(255,255,255,0.05)" }}>
             {[
-              { id: "agent", label: "✦ AI Agent" },
-              { id: "builder", label: "⚙ Guided" },
-              { id: "arena", label: `⚔ Arena${vault.length ? ` (${vault.length})` : ""}` },
-              { id: "vault", label: `Deck Vault` },
-              { id: "inventory", label: `🎒 Collection` },
+              { id: "agent", label: "✦ AGENT" },
+              { id: "builder", label: "⚙ BUILDER" },
+              { id: "arena", label: `⚔ ARENA${vault.length ? ` (${vault.length})` : ""}` },
+              { id: "vault", label: `VAULT` },
+              { id: "inventory", label: "🎒 COLLECTION" },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
-                padding: "7px 16px", border: "none", cursor: "pointer",
-                background: tab === t.id ? "#c9a84c0f" : "transparent",
-                borderBottom: tab === t.id ? "2px solid #c9a84c" : "2px solid transparent",
-                fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: 1,
-                color: tab === t.id ? "#c9a84c" : "#444", transition: "all 0.2s",
+                padding: "8px 18px", border: "none", cursor: "pointer", borderRadius: 8,
+                background: tab === t.id ? "rgba(201, 168, 76, 0.1)" : "transparent",
+                fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: 2,
+                color: tab === t.id ? "#c9a84c" : "#666", transition: "all 0.3s cubic-bezier(0.19, 1, 0.22, 1)",
+                boxShadow: tab === t.id ? "0 4px 15px rgba(0,0,0,0.4)" : "none",
               }}>{t.label}</button>
             ))}
           </div>
@@ -2175,11 +2320,11 @@ export default function MTGDeckArchitect() {
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "0 16px" }}>
-        {tab === "agent" && <AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
-        {tab === "builder" && <GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
-        {tab === "arena" && <Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} />}
+        {tab === "agent" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} /></div>}
+        {tab === "builder" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} /></div>}
+        {tab === "arena" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "vault" && (
-          <div style={{ padding: 20 }}>
+          <div style={{ animation: "inkDissolve 0.6s ease-out forwards", padding: 20 }}>
             {compareIds.length === 2 ? (
               <div style={{ animation: "fadeIn 0.3s ease" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -2239,7 +2384,7 @@ export default function MTGDeckArchitect() {
                               </div>
                             </div>
                             <div style={{ pointerEvents: "none", opacity: isSelected ? 1 : 0.6 }}>
-                              <DeckDisplay deck={d.deck} compact={true} />
+                              <DeckDisplay deck={d.deck} compact={true} onCtx={onCtx} />
                             </div>
                             <button onClick={(e) => {
                               e.stopPropagation();
@@ -2279,6 +2424,38 @@ export default function MTGDeckArchitect() {
               <button onClick={() => setSaveModal(null)} style={xBtn}>Cancel</button>
               <button onClick={confirmSave} style={{ ...xBtn, background: "#c9a84c15", color: "#c9a84c", borderColor: "#c9a84c44" }}>✦ Save</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          onClick={() => setContextMenu(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 10000 }}
+          onContextMenu={e => { e.preventDefault(); setContextMenu(null); }}
+        >
+          <div className="glass-panel" style={{
+            ...GLASS_STYLE,
+            position: "absolute", left: contextMenu.x, top: contextMenu.y,
+            minWidth: 160, padding: 6, zIndex: 10001,
+            animation: "fadeIn 0.15s cubic-bezier(0.19, 1, 0.22, 1)"
+          }}>
+            <div style={{ fontSize: 9, color: "#c9a84c", padding: "4px 10px", borderBottom: "1px solid rgba(201,168,76,0.1)", marginBottom: 4, fontFamily: "'Cinzel', serif" }}>{contextMenu.card.name.toUpperCase()}</div>
+            {[
+              { label: "🎒 Add to Collection", action: () => handleUpdateInventory(contextMenu.card.name, 1) },
+              { label: "🛒 View on Scryfall", action: () => window.open(contextMenu.card.cardData?.scryfall_uri, "_blank") },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={(e) => { e.stopPropagation(); item.action(); setContextMenu(null); }}
+                style={{
+                  ...glassBtn, width: "100%", padding: "8px 12px", textAlign: "left", fontSize: 11, color: "#aaa", border: "none", background: "transparent"
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}
+                onMouseOut={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#aaa"; }}
+              >{item.label}</button>
+            ))}
           </div>
         </div>
       )}

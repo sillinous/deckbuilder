@@ -90,14 +90,15 @@ async function callWithRetry(url, getOpts, apiKeys, maxRetries = 4) {
     const key = apiKeys[attempt % apiKeys.length];
     const opts = getOpts(key);
     resp = await fetch(url, opts);
-    if (resp.status === 429 && attempt < maxRetries) {
-      if (apiKeys.length > 1) {
-        // Try the next key quickly
+    const isTransient = [429, 502, 503, 504].includes(resp.status);
+    if (isTransient && attempt < maxRetries) {
+      if (resp.status === 429 && apiKeys.length > 1) {
+    // Try the next key quickly if rate limited
         await new Promise(r => setTimeout(r, 500));
         continue;
       }
       const ra = resp.headers.get("retry-after");
-      const ms = ra ? Math.min(parseInt(ra) * 1000, 60000) : Math.min(2000 * Math.pow(2.5, attempt), 60000);
+      const ms = ra ? Math.min(parseInt(ra) * 1000, 60000) : Math.min(2000 * Math.pow(2, attempt), 30000);
       await new Promise(r => setTimeout(r, ms));
       continue;
     }

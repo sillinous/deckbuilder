@@ -237,3 +237,22 @@ OUTPUT FORMAT:
     }
   ]
 }`;
+
+export const GLASS_STYLE = {
+  background: "rgba(10, 10, 10, 0.4)",
+  backdropFilter: "blur(20px) saturate(180%)",
+  WebkitBackdropFilter: "blur(20px) saturate(180%)",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  borderRadius: 12,
+  boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.8)",
+};
+
+export const LUXURY_SHADOW = "0 20px 50px rgba(0, 0, 0, 0.9)";
+
+export const glassBtn = {
+  ...xBtn,
+  background: "rgba(255, 255, 255, 0.03)",
+  backdropFilter: "blur(5px)",
+  border: "1px solid rgba(255, 255, 255, 0.1)",
+  transition: "all 0.3s cubic-bezier(0.19, 1, 0.22, 1)",
+};
