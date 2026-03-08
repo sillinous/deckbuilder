@@ -1980,7 +1980,7 @@ function SettingsModal({ config, setConfig, onClose }) {
 
   const handleProviderChange = (id) => {
     const p = AI_PROVIDERS.find(x => x.id === id);
-    setLocalCfg(prev => ({ ...prev, providerId: id, model: p?.defaultModel || "" }));
+    setLocalCfg(prev => ({ ...prev, providerId: id, modelId: p?.defaultModel || "" }));
     setTestStatus(null);
   };
 
@@ -1996,7 +1996,12 @@ function SettingsModal({ config, setConfig, onClose }) {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: getApiHeaders(localCfg),
-        body: JSON.stringify({ model: "x", max_tokens: 50, system: "Reply with exactly: OK", messages: [{ role: "user", content: "test" }] }),
+        body: JSON.stringify({
+          model: localCfg.modelId || provider.defaultModel,
+          max_tokens: 50,
+          system: "Reply with exactly: OK",
+          messages: [{ role: "user", content: "test" }]
+        }),
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -2112,13 +2117,13 @@ function SettingsModal({ config, setConfig, onClose }) {
             <div style={label}>MODEL</div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {provider.models.map(m => (
-                <button key={m.id} onClick={() => setLocalCfg(prev => ({ ...prev, model: m.id }))}
+                <button key={m.id} onClick={() => setLocalCfg(prev => ({ ...prev, modelId: m.id }))}
                   style={{
                     padding: "5px 10px", borderRadius: 5, fontSize: 10, cursor: "pointer",
                     fontFamily: "'Cinzel', serif",
-                    background: (localCfg.model || provider.defaultModel) === m.id ? "#c9a84c10" : "#080808",
-                    border: `1px solid ${(localCfg.model || provider.defaultModel) === m.id ? "#c9a84c44" : "#1a1a1a"}`,
-                    color: (localCfg.model || provider.defaultModel) === m.id ? "#c9a84c" : "#555",
+                    background: (localCfg.modelId || provider.defaultModel) === m.id ? "#c9a84c10" : "#080808",
+                    border: `1px solid ${(localCfg.modelId || provider.defaultModel) === m.id ? "#c9a84c44" : "#1a1a1a"}`,
+                    color: (localCfg.modelId || provider.defaultModel) === m.id ? "#c9a84c" : "#555",
                     transition: "all 0.15s",
                   }}>{m.name}</button>
               ))}
