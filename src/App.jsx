@@ -22,7 +22,8 @@ import {
   loadVault,
   saveVault,
   serializeDeck,
-  runToolLoop
+  runToolLoop,
+  generateOptimalLands
 } from "./utils";
 import {
   AI_PROVIDERS,
@@ -139,7 +140,7 @@ function TypeBars({ data }) {
   );
 }
 
-function ManaAnalytics({ data }) {
+function ManaAnalytics({ data, onAutoFix }) {
   const { pips, sources } = data;
   const clr = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#888", Any: "#c9a84c" };
   const keys = ["W", "U", "B", "R", "G", "C"];
@@ -160,6 +161,11 @@ function ManaAnalytics({ data }) {
         );
       })}
       {sources.Any > 0 && <div style={{ fontSize: 9, color: "#c9a84c", marginTop: 4, fontStyle: "italic" }}>Includes {sources.Any} 'Any Color' sources</div>}
+      {onAutoFix && (
+        <button onClick={onAutoFix} style={{ ...xBtn, marginTop: 8, background: "linear-gradient(135deg, #182a18, #101810)", borderColor: "#4DB87A33", color: "#4DB87A", width: "100%", fontSize: 9 }}>
+          🪄 Auto-Fix Lands
+        </button>
+      )}
     </div>
   );
 }
@@ -317,6 +323,26 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   const nl = deck.mainboard.filter(c => c.cardData && !c.cardData.type_line?.includes("Land"));
   const avg = nl.length ? (nl.reduce((a, c) => a + (c.cardData.cmc || 0) * c.qty, 0) / nl.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "—";
 
+  const handleAutoFixLands = async () => {
+    const format = totalM >= 90 ? "commander" : "standard";
+    const lands = generateOptimalLands(deck, format);
+    if (!lands.length) return;
+
+    const updated = { ...deck, mainboard: [...deck.mainboard] };
+    lands.forEach(l => {
+      const idx = updated.mainboard.findIndex(c => c.name === l.name);
+      if (idx !== -1) {
+        updated.mainboard[idx] = { ...updated.mainboard[idx], qty: updated.mainboard[idx].qty + l.qty };
+      } else {
+        updated.mainboard.push({ ...l, cardData: { name: l.name, type_line: "Land", mana_cost: "", cmc: 0, image_uris: null } });
+      }
+    });
+
+    setDeck(updated);
+    const enriched = await aiEnrichDeck(updated, () => { });
+    setDeck(enriched);
+  };
+
   const handleUpdateQty = (cardName, delta) => {
     setDeck(prevDeck => {
       const newDeck = { ...prevDeck, mainboard: [...prevDeck.mainboard], sideboard: [...(prevDeck.sideboard || [])] };
@@ -413,7 +439,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
           </div>
           <div>
             <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MANA BASE</div>
-            <ManaAnalytics data={manaInfo} />
+            <ManaAnalytics data={manaInfo} onAutoFix={handleAutoFixLands} />
           </div>
         </div>}
       </div>
@@ -800,9 +826,15 @@ function AIAgent({ onSaveDeck, providerCfg }) {
       if (hasDeck(decklistText)) {
         updateStatus("Identifying card types and technical specs...");
         const parsed = parseDecklist(decklistText);
+
+        // Show the parsed deck immediately (with AI-generated types/costs)
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, content: fullText.replace(/===[\s\S]*?===/g, "").trim(), deck: parsed, onGenerateGuide: handleGenerateGuide } : m));
+
         updateStatus("Fetching high-res card art...");
         const enriched = await aiEnrichDeck(parsed, updateStatus);
-        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: fullText.replace(/===[\s\S]*?===/g, "").trim(), deck: enriched, onGenerateGuide: handleGenerateGuide } : m));
+
+        // Update with enriched data (including images)
+        setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, deck: enriched } : m));
       } else {
         setMessages(prev => prev.map(m => m._id === lid ? { ...m, loading: false, content: fullText } : m));
       }

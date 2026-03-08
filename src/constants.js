@@ -94,15 +94,19 @@ OUTPUT FORMAT FOR DECKLISTS — use EXACTLY this structure:
 
 ===DECKLIST_START===
 Mainboard
-[qty] [exact card name]
+[qty] [exact card name] | [type] | [mana cost]
 ...
 
 Sideboard
-[qty] [exact card name]
+[qty] [exact card name] | [type] | [mana cost]
 ...
 ===DECKLIST_END===
 
-After the decklist, ALWAYS provide detailed strategic analysis covering: game plan, key synergies, mulligan guide, matchup notes vs top meta decks, and sideboard guide.
+Example line: 4 Lightning Bolt | Instant | {R}
+Example line: 1 Ragavan, Nimble Pilferer | Creature | {R}
+Example line: 4 Wooded Foothills | Land |
+
+After the decklist, provide a concise strategic analysis covering: game plan, key synergies, and a quick sideboard guide.
 
 Be opinionated. Have strong takes. Explain WHY. Don't hedge — commit to the best builds. If the user asks for "the best deck" with no constraints, deliver the single strongest list you know.`;
 

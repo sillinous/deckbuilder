@@ -21,13 +21,45 @@ export function parseDecklist(text) {
   const mainboard = [], sideboard = [], commander = [];
   let isSideboard = false;
   const lines = text.split("\n");
+
+  const parseCmc = (cost) => {
+    if (!cost) return 0;
+    let cmc = 0;
+    const symbols = cost.match(/\{[^}]+\}/g) || [];
+    symbols.forEach(s => {
+      const val = s.replace(/[{}]/g, "");
+      if (/^\d+$/.test(val)) cmc += parseInt(val);
+      else if (val.includes("/")) cmc += 1; // Hybrid
+      else if (val !== "X") cmc += 1; // Colored or other symbols
+    });
+    return cmc;
+  };
+
   for (let l of lines) {
     l = l.trim();
     if (!l || l.startsWith("//")) continue;
     if (l.toLowerCase() === "sideboard") { isSideboard = true; continue; }
     const m = l.match(/^(\d+)x?\s+(.+)$/);
     if (m) {
-      const entry = { qty: parseInt(m[1]), name: m[2], cardData: null };
+      const fullPart = m[2];
+      const parts = fullPart.split("|").map(p => p.trim());
+      const name = parts[0];
+      const type = parts[1] || "";
+      const cost = parts[2] || "";
+
+      const entry = {
+        qty: parseInt(m[1]),
+        name: name,
+        cardData: type || cost ? {
+          name: name,
+          type_line: type,
+          mana_cost: cost,
+          cmc: parseCmc(cost),
+          image_uris: null,
+          prices: null
+        } : null
+      };
+
       if (isSideboard) sideboard.push(entry); else mainboard.push(entry);
     }
   }
@@ -107,6 +139,62 @@ export function analyzeManaBase(cards) {
   });
 
   return { pips, sources };
+}
+
+export function generateOptimalLands(deck, format = "standard") {
+  const { pips } = analyzeManaBase([...deck.mainboard, ...(deck.sideboard || [])]);
+  const totalPips = Object.values(pips).reduce((a, b) => a + b, 0);
+  const colors = Object.entries(pips).filter(([k, v]) => v > 0 && k !== "C").map(([k]) => k);
+
+  if (totalPips === 0) return []; // No spells, can't suggest lands
+
+  const targetLands = format === "commander" ? 38 : 24;
+  const currentLands = deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).reduce((a, c) => a + c.qty, 0);
+  const toAdd = targetLands - currentLands;
+
+  if (toAdd <= 0) return [];
+
+  const basics = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+  const suggestions = [];
+  let remaining = toAdd;
+
+  // Multi-color fixing basics
+  if (colors.length > 1) {
+    if (format === "commander") {
+      suggestions.push({ name: "Command Tower", qty: 1 });
+      remaining--;
+    } else if (remaining >= 4) {
+      const wildsQty = Math.min(4, Math.floor(toAdd / 6));
+      if (wildsQty > 0) {
+        suggestions.push({ name: "Terramorphic Expanse", qty: wildsQty });
+        remaining -= wildsQty;
+      }
+    }
+  }
+
+  // Distribute basics
+  colors.forEach(c => {
+    const share = Math.round((pips[c] / totalPips) * remaining);
+    if (share > 0) {
+      suggestions.push({ name: basics[c], qty: share });
+    }
+  });
+
+  // Final adjustment to hit exact target
+  let currentSuggested = suggestions.reduce((a, c) => a + c.qty, 0);
+  while (currentSuggested < toAdd) {
+    const top = colors.sort((a, b) => pips[b] - pips[a])[0] || "W";
+    const entry = suggestions.find(s => s.name === basics[top]);
+    if (entry) entry.qty++; else suggestions.push({ name: basics[top], qty: 1 });
+    currentSuggested++;
+  }
+  while (currentSuggested > toAdd && suggestions.length > 0) {
+    const top = suggestions.sort((a, b) => b.qty - a.qty)[0];
+    top.qty--;
+    currentSuggested--;
+  }
+
+  return suggestions.filter(s => s.qty > 0);
 }
 
 // ═══════════════════════════════════════════════════════════
