@@ -2181,6 +2181,13 @@ export default function MTGDeckArchitect() {
     setTimeout(() => setGlobalPulse(null), 1000);
   };
 
+  const activeProvider = AI_PROVIDERS.find(p => p.id === providerCfg.providerId) || AI_PROVIDERS[0];
+
+  const onCtx = (e, card) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, card });
+  };
+
   // Sync colors whenever vault changes or a deck is loaded
   useEffect(() => {
     const active = vault.find(d => tab === "agent" ? false : d.id === tab); // Simplification for now
@@ -2320,8 +2327,8 @@ export default function MTGDeckArchitect() {
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "0 16px" }}>
-        {tab === "agent" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} /></div>}
-        {tab === "builder" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} /></div>}
+        {tab === "agent" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
+        {tab === "builder" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "arena" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "vault" && (
           <div style={{ animation: "inkDissolve 0.6s ease-out forwards", padding: 20 }}>
