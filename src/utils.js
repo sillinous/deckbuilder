@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, VAULT_KEY } from "./constants";
+import { AI_PROVIDERS, VAULT_KEY, SYNERGY_SYSTEM } from "./constants";
 
 // ═══════════════════════════════════════════════════════════
 // SCRYFALL API
@@ -390,4 +390,14 @@ export async function runToolLoop(system, messages, providerCfg, onUpdateStatus)
     history.push({ role: "assistant", content: finalData.content });
   }
   return finalData;
+}
+
+export async function aiIdentifySynergies(deck, providerCfg) {
+  try {
+    const list = deckToText(deck);
+    const res = await runToolLoop(SYNERGY_SYSTEM, [{ role: "user", content: `Identify synergies in this deck:\n${list}` }], providerCfg, () => { });
+    const textBlob = (res.content || []).map(b => b.text || "").join("");
+    const jsonMatch = textBlob.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : { synergies: [] };
+  } catch { return { synergies: [] }; }
 }

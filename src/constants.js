@@ -178,3 +178,17 @@ export const IMPORT_ANALYSIS_PROMPT = "Please analyze the following imported dec
 
 export const VAULT_KEY = "arcanum_vault";
 export const xBtn = { background: "#0f0f0f", border: "1px solid #1f1f1f", color: "#777", padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 10, fontFamily: "'Cinzel', serif" };
+
+export const SYNERGY_SYSTEM = `You are Arcanum — the MTG synergy specialist.
+Analyze the provided deck and identify 5-8 key synergies or combos between specific cards.
+
+OUTPUT FORMAT (JSON ONLY):
+{
+  "synergies": [
+    {
+      "cards": ["Card Name A", "Card Name B"],
+      "description": "Brief explanation of the synergy (1 sentence)",
+      "type": "combo|synergy|protection|ramp"
+    }
+  ]
+}`;

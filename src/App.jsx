@@ -23,7 +23,8 @@ import {
   saveVault,
   serializeDeck,
   runToolLoop,
-  generateOptimalLands
+  generateOptimalLands,
+  aiIdentifySynergies
 } from "./utils";
 import {
   AI_PROVIDERS,
@@ -170,13 +171,18 @@ function ManaAnalytics({ data, onAutoFix }) {
   );
 }
 
-function CardRow({ card, onHover, isEditMode, onUpdateQty }) {
+function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight }) {
   const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease" }}
-      onMouseEnter={() => img && onHover(img)} onMouseLeave={() => onHover(null)}>
+    <div style={{
+      display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease",
+      background: synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
+      boxShadow: synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
+      transition: "all 0.3s ease"
+    }}
+      onMouseEnter={() => img && onHover(img, card.name)} onMouseLeave={() => onHover(null, null)}>
       <div style={{ width: 18, fontSize: 10, color: "#777", fontWeight: 700 }}>{card.qty}x</div>
       <div style={{ flex: 1, fontSize: 11, color: "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
       <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
@@ -275,14 +281,23 @@ function BudgetSuggestions({ data, onClear }) {
   );
 }
 
-function MosaicView({ deck, onHover }) {
+function MosaicView({ deck, onHover, synergyMap, activeCard }) {
+  const related = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
+  const relatedNames = related.flatMap(s => s.cards);
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, padding: "10px 0" }}>
       {deck.mainboard.map((c, i) => {
         const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
+        const isRelated = relatedNames.includes(c.name);
         return (
-          <div key={i} onMouseEnter={() => img && onHover(img)} onMouseLeave={() => onHover(null)}
-            style={{ position: "relative", aspectRatio: "0.717", borderRadius: 6, overflow: "hidden", background: "#111", border: "1px solid #222", transition: "transform 0.2s" }}
+          <div key={i} onMouseEnter={() => img && onHover(img, c.name)} onMouseLeave={() => onHover(null, null)}
+            style={{
+              position: "relative", aspectRatio: "0.717", borderRadius: 6, overflow: "hidden", background: "#111",
+              border: isRelated ? "2px solid #c9a84c" : "1px solid #222",
+              boxShadow: isRelated ? "0 0 15px #c9a84c66" : "none",
+              transition: "transform 0.2s, border 0.3s, box-shadow 0.3s"
+            }}
             onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}>
             {img ? <img src={img} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#444", textAlign: "center" }}>{c.name}</div>}
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, padding: "2px 4px", textAlign: "center" }}>{c.qty}x</div>
@@ -308,9 +323,12 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   const [isSimulating, setIsSimulating] = useState(false);
   const [budgetSuggestions, setBudgetSuggestions] = useState(null);
   const [isBudgetizing, setIsBudgetizing] = useState(false);
+  const [synergyMap, setSynergyMap] = useState(null);
+  const [isIdentifyingSynergies, setIsIdentifyingSynergies] = useState(false);
+  const [activeCard, setActiveCard] = useState(null);
 
   // Sync internal deck state if the parent passes down a completely new deck object
-  useEffect(() => { setDeck(initialDeck); }, [initialDeck]);
+  useEffect(() => { setDeck(initialDeck); setSynergyMap(null); }, [initialDeck]);
 
   const curve = useMemo(() => computeCurve(deck.mainboard), [deck.mainboard]);
   const types = useMemo(() => computeTypes(deck.mainboard), [deck.mainboard]);
@@ -375,6 +393,20 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
 
   const copyDeck = () => { navigator.clipboard?.writeText(deckToText(deck)); };
 
+  const handleHover = (img, name) => {
+    onHover(img);
+    setActiveCard(name);
+  };
+
+  const handleIdentifySynergies = async () => {
+    setIsIdentifyingSynergies(true);
+    const res = await aiIdentifySynergies(deck, loadProviderConfig());
+    if (res) setSynergyMap(res);
+    setIsIdentifyingSynergies(false);
+  };
+
+  const activeSynergies = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
+
   return (
     <div style={{ background: "#090909", border: "1px solid #181818", borderRadius: 10, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -403,7 +435,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20 }}>
         <div style={{ maxHeight: compact ? 300 : 520, overflowY: "auto" }}>
           {viewMode === "mosaic" ? (
-            <MosaicView deck={deck} onHover={onHover} />
+            <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : (
             <>
               {order.map(g => groups[g] && (
@@ -412,7 +444,10 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
                     {g}s ({groups[g].reduce((a, c) => a + c.qty, 0)})
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {groups[g].map((c, i) => <CardRow key={i} card={c} onHover={onHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} />)}
+                    {groups[g].map((c, i) => {
+                      const isRelated = activeCard && synergyMap && synergyMap.synergies.some(s => s.cards.includes(activeCard) && s.cards.includes(c.name));
+                      return <CardRow key={i} card={c} onHover={handleHover} isEditMode={isEditMode} onUpdateQty={handleUpdateQty} synergyHighlight={isRelated} />;
+                    })}
                   </div>
                 </div>
               ))}
@@ -447,6 +482,17 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       {sbGuide && <SideboardGuide guide={sbGuide} onClear={() => setSbGuide(null)} />}
       {goldfishData && <GoldfishStats data={goldfishData} onClear={() => setGoldfishData(null)} />}
       {budgetSuggestions && <BudgetSuggestions data={budgetSuggestions} onClear={() => setBudgetSuggestions(null)} />}
+
+      {activeSynergies.length > 0 && (
+        <div style={{ marginTop: 12, padding: 12, background: "rgba(201, 168, 76, 0.05)", border: "1px solid #c9a84c33", borderRadius: 8, animation: "fadeIn 0.2s ease" }}>
+          <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>ACTIVE SYNERGIES</div>
+          {activeSynergies.map((s, i) => (
+            <div key={i} style={{ fontSize: 11, color: "#aaa", marginBottom: i === activeSynergies.length - 1 ? 0 : 8, lineHeight: 1.4 }}>
+              <span style={{ color: "#c9a84c", fontWeight: 700 }}>{s.cards.join(" + ")}:</span> {s.description}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 12, borderTop: "1px solid #1a1a1a", paddingTop: 12, position: "relative" }}>
         {onSave && (
@@ -531,6 +577,14 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
             {isBudgetizing ? "⏳ Analyzing..." : totalPrice > 100 ? "💸 Budgetize" : "🚀 Power Up"}
           </button>
         )}
+
+        <button
+          onClick={handleIdentifySynergies}
+          disabled={isIdentifyingSynergies}
+          style={{ ...xBtn, background: synergyMap ? "rgba(201, 168, 76, 0.1)" : "#0f0f0f", color: synergyMap ? "#c9a84c" : "#777", borderColor: synergyMap ? "#c9a84c33" : "#1f1f1f" }}
+        >
+          {isIdentifyingSynergies ? "⏳ Detecting..." : "🧩 Map Synergies"}
+        </button>
 
         <div style={{ flex: 1 }} />
         <button onClick={() => {
