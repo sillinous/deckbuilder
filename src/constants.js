@@ -27,7 +27,7 @@ export const AI_PROVIDERS = [
       { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
       { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
       { id: "mistralai/mistral-large-2411", name: "Mistral Large 3" },
-    ], defaultModel: "anthropic/claude-sonnet-4"
+    ], defaultModel: "anthropic/claude-3.5-sonnet"
   },
   {
     id: "openai", name: "OpenAI", desc: "GPT-4o — paid", needsKey: true, url: "https://platform.openai.com/api-keys",
