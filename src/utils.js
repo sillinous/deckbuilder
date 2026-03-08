@@ -329,13 +329,11 @@ export function saveProviderConfig(cfg) {
 }
 
 export function getApiHeaders(cfg) {
-  const p = AI_PROVIDERS.find(x => x.id === cfg.providerId) || AI_PROVIDERS[0];
   const h = { "Content-Type": "application/json" };
   const apiKey = (cfg.keys && cfg.keys[cfg.providerId]) || cfg.apiKey || "";
-  if (p.id === "anthropic") h["X-Anthropic-Key"] = apiKey;
-  else if (p.id === "openai") h["Authorization"] = `Bearer ${apiKey}`;
-  else if (p.id === "groq") h["X-Groq-Key"] = apiKey;
-  else if (p.id === "openrouter") h["Authorization"] = `Bearer ${apiKey}`;
+  h["X-Provider"] = cfg.providerId || "groq-free";
+  h["X-API-Key"] = apiKey;
+  if (cfg.modelId) h["X-Model"] = cfg.modelId;
   return h;
 }
 

@@ -22,20 +22,20 @@ export const AI_PROVIDERS = [
   {
     id: "openrouter", name: "OpenRouter", desc: "Access any model — pay per token", needsKey: true, url: "https://openrouter.ai/keys",
     models: [
-      { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
-      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+      { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash" },
       { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
-      { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek V3" },
-      { id: "mistralai/mistral-medium-3", name: "Mistral Medium 3" },
+      { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
+      { id: "mistralai/mistral-large-2411", name: "Mistral Large 3" },
     ], defaultModel: "anthropic/claude-sonnet-4"
   },
   {
     id: "openai", name: "OpenAI", desc: "GPT-4o — paid", needsKey: true, url: "https://platform.openai.com/api-keys",
     models: [
       { id: "gpt-4o", name: "GPT-4o" },
-      { id: "gpt-4o-mini", name: "GPT-4o Mini (fast)" },
-      { id: "gpt-4.1", name: "GPT-4.1" },
-      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+      { id: "o1-preview", name: "OpenAI o1 Preview" },
+      { id: "o1-mini", name: "OpenAI o1 Mini" },
     ], defaultModel: "gpt-4o"
   },
 ];
