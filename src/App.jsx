@@ -2087,15 +2087,17 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
 
       {/* Deck Viewer Modal */}
       {viewDeck && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, overflowY: "auto" }} onClick={() => setViewDeck(null)}>
-          <div style={{ maxWidth: 800, margin: "90px auto 40px auto", background: "#0a0a0a", borderRadius: 12, padding: "26px 32px", border: "1px solid #1a1a1a" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c" }}>{viewDeck.name}</h3>
-              <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 16 }}>✕</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 1100, display: "flex", flexDirection: "column" }} onClick={() => setViewDeck(null)}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", height: "100vh", padding: "16px 20px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexShrink: 0 }}>
+              <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 16, color: "#c9a84c" }}>{viewDeck.name}</h3>
+              <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 14, borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <DeckDisplay deck={viewDeck.deck} onHover={setHov} listHeight="none" />
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <DeckDisplay deck={viewDeck.deck} onHover={setHov} listHeight="calc(100vh - 220px)" />
+            </div>
           </div>
-          {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
+          {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none", animation: "slideUp 0.15s ease" }}><img src={hov} alt="" style={{ width: 240, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
         </div>
       )}
     </div>
