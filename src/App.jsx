@@ -598,7 +598,7 @@ function MetaStats({ data, onClear }) {
 }
 
 // Full deck display widget
-function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGuide, onBudgetize, inventory, onUpdateInventory, onCtx }) {
+function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, onGenerateGuide, onBudgetize, inventory, onUpdateInventory, onCtx }) {
   const [deck, setDeck] = useState(initialDeck);
   const ownedCount = (name) => inventory?.[name] || 0;
   const missingCards = deck.mainboard.filter(c => ownedCount(c.name) < c.qty);
@@ -775,7 +775,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20 }}>
-        <div style={{ maxHeight: compact ? 300 : "75vh", overflowY: "auto", paddingRight: 4 }}>
+        <div style={{ maxHeight: listHeight || (compact ? 300 : "75vh"), overflowY: "auto", paddingRight: 4 }}>
           {viewMode === "mosaic" ? (
             <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : viewMode === "stack" ? (
@@ -1961,12 +1961,12 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
       {/* Deck Viewer Modal */}
       {viewDeck && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 76, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflowY: "auto" }} onClick={() => setViewDeck(null)}>
-          <div style={{ maxWidth: 700, width: "100%", background: "#0a0a0a", borderRadius: 12, padding: 20, border: "1px solid #1a1a1a", marginTop: 10 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 16, color: "#c9a84c" }}>{viewDeck.name}</h3>
-              <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 14 }}>✕</button>
+          <div style={{ maxWidth: 800, width: "100%", background: "#0a0a0a", borderRadius: 12, padding: "26px 32px", border: "1px solid #1a1a1a", marginTop: 10 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c" }}>{viewDeck.name}</h3>
+              <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 16 }}>✕</button>
             </div>
-            <DeckDisplay deck={viewDeck.deck} onHover={setHov} />
+            <DeckDisplay deck={viewDeck.deck} onHover={setHov} listHeight="none" />
           </div>
           {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
         </div>
