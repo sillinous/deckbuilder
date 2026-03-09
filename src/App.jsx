@@ -42,6 +42,27 @@ import {
   xBtn,
   GLASS_STYLE
 } from "./constants";
+import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
+import ColorPie from "./components/ColorPie";
+import CardLightbox from "./components/CardLightbox";
+import DrawProbability from "./components/DrawProbability";
+import DeckDiff from "./components/DeckDiff";
+import { CardRowSkeleton, AnalyticsSkeleton } from "./components/SkeletonLoader";
+
+// Compact hypergeometric for inline mulligan odds
+function chooseCompact(n, k) {
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  let r = 1;
+  for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1);
+  return r;
+}
+function hypergeomCompact(pop, succ, draws, minHits) {
+  let p = 0;
+  for (let k = minHits; k <= Math.min(succ, draws); k++)
+    p += (chooseCompact(succ, k) * chooseCompact(pop - succ, draws - k)) / chooseCompact(pop, draws);
+  return Math.min(Math.max(p, 0), 1);
+}
 
 // ═══════════════════════════════════════════════════════════
 // SHARED AI HELPERS
@@ -676,6 +697,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
   const [metaData, setMetaData] = useState(null);
   const [isAnalyzingMeta, setIsAnalyzingMeta] = useState(false);
   const [metaStatus, setMetaStatus] = useState("");
+  const [showDrawProb, setShowDrawProb] = useState(false);
   const [recommendations, setRecommendations] = useState(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestTarget, setSuggestTarget] = useState("");
@@ -891,6 +913,34 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
             <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>MANA BASE</div>
             <ManaAnalytics data={manaInfo} onAutoFix={handleAutoFixLands} />
           </div>
+          <div style={{ padding: "10px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.03)" }}>
+            <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>COLOR DISTRIBUTION</div>
+            <ColorPie cards={deck.mainboard} size={70} />
+          </div>
+          <div style={{ padding: "10px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.03)" }}>
+            <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>LAND MULLIGAN ODDS</div>
+            {(() => {
+              const lc = deck.mainboard.filter(c => (c.cardData?.type_line || "").includes("Land")).reduce((a, c) => a + c.qty, 0);
+              const mulls = [7, 6, 5, 4].map(hs => {
+                let ideal = 0;
+                for (let l = 2; l <= Math.min(4, hs); l++) {
+                  const p = hypergeomCompact(totalM, lc, hs, l) - (l < hs ? hypergeomCompact(totalM, lc, hs, l + 1) : 0);
+                  ideal += Math.max(p, 0);
+                }
+                return { hs, pct: Math.round(ideal * 100) };
+              });
+              return (
+                <div style={{ display: "flex", gap: 4 }}>
+                  {mulls.map(m => (
+                    <div key={m.hs} style={{ flex: 1, textAlign: "center", padding: "4px 2px", background: "rgba(0,0,0,0.2)", borderRadius: 6 }}>
+                      <div style={{ fontSize: 7, color: "#444", letterSpacing: 0.5 }}>{m.hs === 7 ? "KEEP" : `M→${m.hs}`}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: m.pct >= 70 ? "#4DB87A" : m.pct >= 50 ? "#c9a84c" : "#E05A50", fontFamily: "'Cinzel', serif" }}>{m.pct}%</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
         </div>}
       </div>
 
@@ -899,6 +949,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
       {budgetSuggestions && <BudgetSuggestions data={budgetSuggestions} onClear={() => setBudgetSuggestions(null)} />}
       {metaData && <MetaStats data={metaData} onClear={() => setMetaData(null)} />}
       {recommendations && <RecommendationStats data={recommendations} targetCard={suggestTarget} onClear={() => { setRecommendations(null); setSuggestTarget(""); }} />}
+      {showDrawProb && <DrawProbability deck={deck} onClose={() => setShowDrawProb(false)} />}
 
       {activeSynergies.length > 0 && (
         <div style={{ marginTop: 12, padding: 12, background: "rgba(201, 168, 76, 0.05)", border: "1px solid #c9a84c33", borderRadius: 8, animation: "fadeIn 0.2s ease" }}>
@@ -981,6 +1032,13 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
           style={{ ...xBtn, background: goldfishData ? "#c9a84c11" : "#0f0f0f", color: goldfishData ? "#c9a84c" : "#777" }}
         >
           {isSimulating ? "⏳ Calculating..." : "📊 Stats"}
+        </button>
+
+        <button
+          onClick={() => setShowDrawProb(!showDrawProb)}
+          style={{ ...xBtn, background: showDrawProb ? "rgba(77,163,212,0.1)" : "#0f0f0f", color: showDrawProb ? "#4DA3D4" : "#777", borderColor: showDrawProb ? "#4DA3D433" : "#1f1f1f" }}
+        >
+          📐 Draw Odds
         </button>
 
         {onBudgetize && (
@@ -2320,6 +2378,22 @@ export default function MTGDeckArchitect() {
   const [activeColors, setActiveColors] = useState([]);
   const [globalPulse, setGlobalPulse] = useState(null); // { type: "success" | "error" }
   const [contextMenu, setContextMenu] = useState(null); // { x, y, card }
+  const [lightboxCard, setLightboxCard] = useState(null);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    "Escape": () => {
+      if (lightboxCard) setLightboxCard(null);
+      else if (showSettings) setShowSettings(false);
+      else if (saveModal) setSaveModal(null);
+      else if (contextMenu) setContextMenu(null);
+    },
+    "ctrl+1": () => setTab("agent"),
+    "ctrl+2": () => setTab("builder"),
+    "ctrl+3": () => setTab("arena"),
+    "ctrl+4": () => setTab("vault"),
+    "ctrl+5": () => setTab("inventory"),
+  });
 
   const triggerPulse = (type) => {
     setGlobalPulse(type);
@@ -2437,6 +2511,26 @@ export default function MTGDeckArchitect() {
           from { transform: scaleY(0); }
           to { transform: scaleY(1); }
         }
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes breathe {
+          0%, 100% { opacity: 0.7; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
         button { font-family: inherit; }
         button:focus-visible { outline: 1px solid #c9a84c55; outline-offset: 2px; }
         input:focus-visible, textarea:focus-visible { border-color: #c9a84c44 !important; box-shadow: 0 0 0 2px rgba(201,168,76,0.08) !important; }
@@ -2503,6 +2597,16 @@ export default function MTGDeckArchitect() {
                   <h2 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c" }}>⚔ DECK COMPARISON</h2>
                   <button onClick={() => setCompareIds([])} style={xBtn}>← Back to Vault</button>
                 </div>
+                {/* Deck Diff View */}
+                {(() => {
+                  const deckA = vault.find(x => x.id === compareIds[0]);
+                  const deckB = vault.find(x => x.id === compareIds[1]);
+                  return deckA && deckB ? (
+                    <div style={{ marginBottom: 24 }}>
+                      <DeckDiff deckA={deckA.deck} deckB={deckB.deck} nameA={deckA.name} nameB={deckB.name} />
+                    </div>
+                  ) : null;
+                })()}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 30 }}>
                   {compareIds.map(id => {
                     const d = vault.find(x => x.id === id);
@@ -2622,8 +2726,9 @@ export default function MTGDeckArchitect() {
           }}>
             <div style={{ fontSize: 8, color: "#c9a84c88", padding: "5px 12px", borderBottom: "1px solid rgba(255,255,255,0.04)", marginBottom: 4, fontFamily: "'Cinzel', serif", letterSpacing: 1.5 }}>{contextMenu.card.name.toUpperCase()}</div>
             {[
+              { label: "🔍 View Details", action: () => setLightboxCard(contextMenu.card) },
               { label: "🎒 Add to Collection", action: () => handleUpdateInventory(contextMenu.card.name, 1) },
-              { label: "🔍 View on Scryfall", action: () => window.open(contextMenu.card.cardData?.scryfall_uri, "_blank") },
+              { label: "🌐 View on Scryfall", action: () => window.open(contextMenu.card.cardData?.scryfall_uri, "_blank") },
             ].map(item => (
               <button
                 key={item.label}
@@ -2640,6 +2745,9 @@ export default function MTGDeckArchitect() {
           </div>
         </div>
       )}
+
+      {/* Card Lightbox */}
+      {lightboxCard && <CardLightbox card={lightboxCard} onClose={() => setLightboxCard(null)} />}
     </div>
   );
 }
