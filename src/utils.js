@@ -9,12 +9,26 @@ export async function sfSearch(q) {
   return r.ok ? (await r.json()).data : [];
 }
 export async function sfNamed(n) {
+  // 1) Exact match
   let r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(n)}`);
-  if (!r.ok) {
-    // Fallback to fuzzy search if exact match fails (helps with AI typos or punctuation differences)
-    r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(n)}`);
-  }
-  return r.ok ? await r.json() : null;
+  if (r.ok) return await r.json();
+
+  // 2) Fuzzy match — handles minor typos or punctuation differences
+  r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(n)}`);
+  if (r.ok) return await r.json();
+
+  // 3) Full-text search — catches pre-release / very new sets that
+  //    aren't yet in the named index (e.g. TMNT Universes Beyond 2026)
+  try {
+    const searchQ = encodeURIComponent(`!"${n}"`);
+    const sr = await fetch(`https://api.scryfall.com/cards/search?q=${searchQ}&order=released&dir=desc`);
+    if (sr.ok) {
+      const data = await sr.json();
+      if (data.data?.length > 0) return data.data[0];
+    }
+  } catch (_) { /* ignore */ }
+
+  return null;
 }
 
 export function getCardImage(cd) {
