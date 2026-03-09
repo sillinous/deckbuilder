@@ -8,17 +8,25 @@ export async function sfSearch(q) {
   const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}`);
   return r.ok ? (await r.json()).data : [];
 }
+// ─── Card Data Fetching: 4-tier cascade ──────────────────────────────────────
+// 1. Scryfall exact name  →  fastest, most detailed
+// 2. Scryfall fuzzy name  →  handles AI/typo variants
+// 3. Scryfall full-text search  →  catches pre-release / new sets
+// 4. magicthegathering.io (MTGJSON-backed)  →  independent second source
 export async function sfNamed(n) {
   // 1) Exact match
-  let r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(n)}`);
-  if (r.ok) return await r.json();
+  try {
+    const r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(n)}`);
+    if (r.ok) return await r.json();
+  } catch (_) { /* network error, try next */ }
 
   // 2) Fuzzy match — handles minor typos or punctuation differences
-  r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(n)}`);
-  if (r.ok) return await r.json();
+  try {
+    const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(n)}`);
+    if (r.ok) return await r.json();
+  } catch (_) { /* ignore */ }
 
-  // 3) Full-text search — catches pre-release / very new sets that
-  //    aren't yet in the named index (e.g. TMNT Universes Beyond 2026)
+  // 3) Full-text search — catches pre-release / very new sets (e.g. TMNT 2026)
   try {
     const searchQ = encodeURIComponent(`!"${n}"`);
     const sr = await fetch(`https://api.scryfall.com/cards/search?q=${searchQ}&order=released&dir=desc`);
@@ -28,24 +36,62 @@ export async function sfNamed(n) {
     }
   } catch (_) { /* ignore */ }
 
+  // 4) magicthegathering.io (MTGJSON-backed) — independent second source
+  try {
+    const r = await fetch(`https://api.magicthegathering.io/v1/cards?name=${encodeURIComponent(n)}&pageSize=5`);
+    if (r.ok) {
+      const json = await r.json();
+      const match = json.cards?.find(c => c.name?.toLowerCase() === n.toLowerCase()) || json.cards?.[0];
+      if (match) {
+        // Normalize to Scryfall-like format so the rest of the app works
+        return {
+          name: match.name,
+          type_line: match.type,
+          mana_cost: match.manaCost || "",
+          cmc: match.cmc || 0,
+          oracle_text: match.text || "",
+          // MTGio cards have multiverseid — use it to build a Gatherer image
+          multiverse_ids: match.multiverseid ? [match.multiverseid] : [],
+          image_uris: null,  // filled in by getCardImage using Gatherer CDN
+          prices: null,
+          _mtgio: true,  // flag so we know the image must come from Gatherer
+        };
+      }
+    }
+  } catch (_) { /* ignore */ }
+
   return null;
 }
 
+// ─── Image Resolution: 3-tier cascade ──────────────────────────────────────
+// 1. Scryfall image_uris (all sizes)
+// 2. Scryfall card_faces image_uris (transform/flip/meld cards)
+// 3. Gatherer CDN via multiverse_id (works even when Scryfall art isn't loaded yet)
+//    URL pattern: https://gatherer.wizards.com/Handlers/Image.ashx?multiverseid=XXX&type=card
 export function getCardImage(cd) {
   if (!cd) return null;
   const getUri = (uris) => uris ? (uris.normal || uris.large || uris.png || uris.small) : null;
 
+  // 1) Scryfall top-level image
   const mainImage = getUri(cd.image_uris);
   if (mainImage) return mainImage;
 
+  // 2) Scryfall card_faces (transform, flip, aftermath, meld)
   if (cd.card_faces) {
     for (const face of cd.card_faces) {
       const faceImage = getUri(face.image_uris);
       if (faceImage) return faceImage;
     }
   }
+
+  // 3) Gatherer CDN — works for cards Scryfall knows about but hasn't
+  //    uploaded art for yet, or for data sourced from magicthegathering.io
+  const mid = cd.multiverse_ids?.[0];
+  if (mid) return `https://gatherer.wizards.com/Handlers/Image.ashx?multiverseid=${mid}&type=card`;
+
   return null;
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // DECK PARSING & ANALYSIS
