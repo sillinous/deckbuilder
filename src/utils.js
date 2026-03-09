@@ -35,6 +35,8 @@ export function parseDecklist(text) {
     return cmc;
   };
 
+  const mainMap = new Map(), sideMap = new Map();
+
   for (let l of lines) {
     l = l.trim();
     if (!l || l.startsWith("//")) continue;
@@ -47,23 +49,45 @@ export function parseDecklist(text) {
       const type = parts[1] || "";
       const cost = parts[2] || "";
 
-      const entry = {
-        qty: parseInt(m[1]),
-        name: name,
-        cardData: type || cost ? {
-          name: name,
-          type_line: type,
-          mana_cost: cost,
-          cmc: parseCmc(cost),
-          image_uris: null,
-          prices: null
-        } : null
-      };
+      const currentMap = isSideboard ? sideMap : mainMap;
+      const existing = currentMap.get(name);
 
-      if (isSideboard) sideboard.push(entry); else mainboard.push(entry);
+      if (existing) {
+        existing.qty += parseInt(m[1]);
+        // If the new entry has more data, use it
+        if (!existing.cardData && (type || cost)) {
+          existing.cardData = {
+            name: name,
+            type_line: type,
+            mana_cost: cost,
+            cmc: parseCmc(cost),
+            image_uris: null,
+            prices: null
+          };
+        }
+      } else {
+        currentMap.set(name, {
+          qty: parseInt(m[1]),
+          name: name,
+          cardData: type || cost ? {
+            name: name,
+            type_line: type,
+            mana_cost: cost,
+            cmc: parseCmc(cost),
+            image_uris: null,
+            prices: null
+          } : null
+        });
+      }
     }
   }
-  return { mainboard, sideboard, commander, analysis: "" };
+
+  return {
+    mainboard: Array.from(mainMap.values()),
+    sideboard: Array.from(sideMap.values()),
+    commander: commander,
+    analysis: ""
+  };
 }
 
 export function hasDeck(text) {
@@ -148,7 +172,8 @@ export function generateOptimalLands(deck, format = "standard") {
 
   if (totalPips === 0) return []; // No spells, can't suggest lands
 
-  const targetLands = format === "commander" ? 38 : 24;
+  const formatCfg = FORMATS.find(f => f.id === format) || FORMATS[0];
+  const targetLands = Math.max(1, Math.floor(formatCfg.deckSize * 0.4)); // ~40% lands
   const currentLands = deck.mainboard.filter(c => c.cardData?.type_line?.includes("Land")).reduce((a, c) => a + c.qty, 0);
   const toAdd = targetLands - currentLands;
 
@@ -163,8 +188,8 @@ export function generateOptimalLands(deck, format = "standard") {
     if (format === "commander") {
       suggestions.push({ name: "Command Tower", qty: 1 });
       remaining--;
-    } else if (remaining >= 4) {
-      const wildsQty = Math.min(4, Math.floor(toAdd / 6));
+    } else if (remaining >= 1) {
+      const wildsQty = Math.max(1, Math.floor(toAdd / 6));
       if (wildsQty > 0) {
         suggestions.push({ name: "Terramorphic Expanse", qty: wildsQty });
         remaining -= wildsQty;

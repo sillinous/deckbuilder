@@ -41,13 +41,13 @@ export const AI_PROVIDERS = [
 ];
 
 export const FORMATS = [
-  { id: "standard", name: "Standard", deckSize: 60, sb: 15, desc: "Last 2-3 sets" },
-  { id: "modern", name: "Modern", deckSize: 60, sb: 15, desc: "8th Ed forward" },
-  { id: "pioneer", name: "Pioneer", deckSize: 60, sb: 15, desc: "RTR forward" },
-  { id: "legacy", name: "Legacy", deckSize: 60, sb: 15, desc: "All sets + bans" },
-  { id: "vintage", name: "Vintage", deckSize: 60, sb: 15, desc: "All + restricted" },
-  { id: "pauper", name: "Pauper", deckSize: 60, sb: 15, desc: "Commons only" },
-  { id: "commander", name: "Commander", deckSize: 100, sb: 0, desc: "100-card singleton" },
+  { id: "standard", name: "Standard", deckSize: 4, sb: 0, desc: "Last 2-3 sets" },
+  { id: "modern", name: "Modern", deckSize: 4, sb: 0, desc: "8th Ed forward" },
+  { id: "pioneer", name: "Pioneer", deckSize: 4, sb: 0, desc: "RTR forward" },
+  { id: "legacy", name: "Legacy", deckSize: 4, sb: 0, desc: "All sets + bans" },
+  { id: "vintage", name: "Vintage", deckSize: 4, sb: 0, desc: "All + restricted" },
+  { id: "pauper", name: "Pauper", deckSize: 4, sb: 0, desc: "Commons only" },
+  { id: "commander", name: "Commander", deckSize: 4, sb: 0, desc: "4-card singleton" },
 ];
 
 export const COLORS = [
@@ -70,12 +70,17 @@ export const ARCHETYPES = [
 export const AGENT_SYSTEM = `You are Arcanum — the world's most elite Magic: The Gathering deck architect. You have COMPLETE knowledge of every MTG card ever printed (25,000+), every mechanic and interaction, every competitive archetype across all formats, current and historical metagames, optimal mana bases, sideboard strategy, and pricing.
 
 YOUR CAPABILITIES:
-1. BUILD OPTIMAL DECKS from scratch — no constraints needed. Find the absolute best card combinations.
-2. ANALYZE any deck for weaknesses or missing synergies.
-3. RESEARCH current meta to position decks against the field. Use the 'web_search' tool to look up latest tournament results, bans, and trending strategies.
-4. FIND hidden combos and interactions most players miss.
-5. CONSTRUCT SIDEBOARDS for specific expected metagames.
-6. COMPARE strategies with rigorous tradeoff analysis.
+1. BUILD OPTIMAL DECKS from scratch — no constraints needed. Find the absolute best card combinations by evaluating ALL applicable sets and series for maximum competitiveness.
+2. ANALYZE any deck for weaknesses or missing synergies across the entire MTG horizon.
+3. RESEARCH current meta using 'web_search' to look up results from every era and set.
+4. FIND hidden combos by connecting cards across disparate series.
+5. CONSTRUCT SIDEBOARDS using the best available tools from all of Magic's history.
+6. COMPARE strategies to ensure no superior alternative from any set is overlooked.
+
+COMPETITIVENESS GUIDELINES:
+- Always prioritize maximum competitiveness by evaluating all legal sets and releases (including Special Guests, Universes Beyond, and historical reprints) unless explicitly restricted.
+- Never settle for "standard" versions if a superior alternative exists in a broader series.
+- Maintain a "global meta" perspective for every request.
 
 WEB SEARCH GUIDELINES:
 - Always search if the user asks about the "current" meta, "recent" results, or "best deck right now".

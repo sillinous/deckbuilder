@@ -643,7 +643,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
   const avg = nl.length ? (nl.reduce((a, c) => a + (c.cardData.cmc || 0) * c.qty, 0) / nl.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "—";
 
   const handleAutoFixLands = async () => {
-    const format = totalM >= 90 ? "commander" : "standard";
+    const format = deck.commander?.length ? "commander" : "standard";
     const lands = generateOptimalLands(deck, format);
     if (!lands.length) return;
 
@@ -664,11 +664,21 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
 
   const handleUpdateQty = (cardName, delta) => {
     setDeck(prevDeck => {
+      const currentTotal = prevDeck.mainboard.reduce((a, c) => a + c.qty, 0);
+
       const newDeck = { ...prevDeck, mainboard: [...prevDeck.mainboard], sideboard: [...(prevDeck.sideboard || [])] };
       // Look in mainboard first
       let idx = newDeck.mainboard.findIndex(c => c.name === cardName);
       if (idx !== -1) {
-        newDeck.mainboard[idx] = { ...newDeck.mainboard[idx], qty: newDeck.mainboard[idx].qty + delta };
+        const newQty = Math.max(0, newDeck.mainboard[idx].qty + delta);
+        const diff = newQty - newDeck.mainboard[idx].qty;
+
+        if (diff > 0 && currentTotal + diff > 4) {
+          // Warning or just prevent
+          return prevDeck;
+        }
+
+        newDeck.mainboard[idx] = { ...newDeck.mainboard[idx], qty: newQty };
         if (newDeck.mainboard[idx].qty <= 0) newDeck.mainboard.splice(idx, 1);
         return newDeck;
       }
@@ -737,20 +747,20 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
-            <div key={l} style={{ padding: "6px 14px", background: "rgba(0,0,0,0.4)", borderRadius: 8, border: `1px solid ${l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "rgba(255,255,255,0.05)"}`, boxShadow: "0 4px 15px rgba(0,0,0,0.2)", transition: "all 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
+            <div key={l} style={{ padding: "6px 14px", background: "rgba(0,0,0,0.4)", borderRadius: 8, border: `1px solid ${l === "Cards" && v > 4 ? "#E05A50" : l === "Lands" && totalM >= 4 && lands < 2 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "rgba(255,255,255,0.05)"}`, boxShadow: "0 4px 15px rgba(0,0,0,0.2)", transition: "all 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
               <div style={{ fontSize: 9, color: "#666", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 2, fontFamily: "'Cinzel', serif" }}>{l}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 14, color: l === "Lands" && totalM >= 40 && lands < 20 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{v}</span>
-                {l === "Price" && costToComplete > 0 && (
+                <span style={{ fontSize: 14, color: l === "Cards" && v > 4 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{v}</span>
+                {l === "Cards" && <span style={{ fontSize: 9, color: "#666", marginLeft: 4 }}>/ 4</span>}                {l === "Price" && costToComplete > 0 && (
                   <span style={{ fontSize: 9, color: "#E05A50", background: "#E05A5015", padding: "1px 6px", borderRadius: 4, border: "1px solid #E05A5033", fontWeight: "bold" }}>-${costToComplete.toFixed(0)} NEEDED</span>
                 )}
               </div>
             </div>
           ))}
-          {totalM >= 40 && lands === 0 && (
+          {totalM >= 4 && lands === 0 && (
             <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
           )}
-          {totalM >= 40 && lands > 0 && lands < 20 && (
+          {totalM >= 4 && lands > 0 && lands < 1 && (
             <span style={{ fontSize: 10, color: "#E05A50", fontStyle: "italic" }}>⚠ Low lands</span>
           )}
         </div>
@@ -1360,7 +1370,7 @@ function GuidedBuilder({ onSaveDeck, providerCfg, inventory, onUpdateInventory, 
       const qp = [`f:${cfg.format}`];
       if (cfg.colors.length) { qp.push(`id<=${cfg.colors.join("")}`); qp.push(`(${cfg.colors.map(c => `c:${c}`).join(" OR ")})`); }
       let cards = [], pg = 1, more = true;
-      while (more && pg <= 3) { log(`Page ${pg}...`); const r = await sfSearch(qp.join(" "), pg); cards.push(...(r.data||[])); more = r.has_more; pg++; await new Promise(r => setTimeout(r, 120)); }
+      while (more && pg <= 5) { log(`Page ${pg}...`); const r = await sfSearch(qp.join(" "), pg); cards.push(...(r.data || [])); more = r.has_more; pg++; await new Promise(r => setTimeout(r, 120)); }
       log(`${cards.length} candidates`);
       // Fetch non-basic lands for the color identity
       if (cfg.colors.length) {
