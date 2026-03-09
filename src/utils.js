@@ -36,6 +36,16 @@ export async function sfNamed(n) {
     }
   } catch (_) { /* ignore */ }
 
+  // 3b) Preview / spoiler search — explicitly includes pre-release & preview cards
+  try {
+    const searchQ = encodeURIComponent(`!"${n}" include:extras`);
+    const sr = await fetch(`https://api.scryfall.com/cards/search?q=${searchQ}&unique=cards&order=released&dir=desc`);
+    if (sr.ok) {
+      const data = await sr.json();
+      if (data.data?.length > 0) return data.data[0];
+    }
+  } catch (_) { /* ignore */ }
+
   // 4) magicthegathering.io (MTGJSON-backed) — independent second source
   try {
     const r = await fetch(`https://api.magicthegathering.io/v1/cards?name=${encodeURIComponent(n)}&pageSize=5`);
