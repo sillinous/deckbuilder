@@ -578,17 +578,19 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
   const cols = ["0", "1", "2", "3", "4", "5", "6", "7+"];
 
   return (
-    <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 0", minHeight: 400 }}>
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "10px 0", minHeight: 400 }}>
       {cols.map(mv => (groups[mv] || []).length > 0 && (
-        <div key={mv} style={{ minWidth: 130, flex: 1 }}>
-          <div style={{ fontSize: 9, color: "#c9a84c88", textAlign: "center", marginBottom: 8, borderBottom: "1px solid rgba(201,168,76,0.12)", paddingBottom: 5, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
-            {mv} <span style={{ color: "#444", fontSize: 8 }}>CMC</span>
-            <span style={{ display: "block", fontSize: 8, color: "#333", marginTop: 1 }}>{groups[mv].reduce((a,c) => a + c.qty, 0)} cards</span>
+        <div key={mv} style={{ minWidth: 140, flex: 1 }}>
+          <div style={{ fontSize: 9, color: "#c9a84c88", textAlign: "center", marginBottom: 8, paddingBottom: 6, fontFamily: "'Cinzel', serif", letterSpacing: 1, position: "relative" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#c9a84c66", display: "block" }}>{mv}</span>
+            <span style={{ fontSize: 8, color: "#333", letterSpacing: 2 }}>CMC · {groups[mv].reduce((a,c) => a + c.qty, 0)} CARDS</span>
+            <div style={{ position: "absolute", bottom: 0, left: "15%", right: "15%", height: 1, background: "linear-gradient(90deg, transparent, rgba(201,168,76,0.2), transparent)" }} />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", position: "relative", gap: 2 }}>
+          <div style={{ display: "flex", flexDirection: "column", position: "relative", gap: 3 }}>
             {groups[mv].map((c, i) => {
               const img = getCardImage(c.cardData);
               const isRelated = relatedNames.includes(c.name);
+              const manaCost = c.cardData?.mana_cost?.replace(/[{}]/g, "") || "";
               return (
                 <div key={i}
                   ref={el => tiltRefs.current[c.name + i] = el}
@@ -597,23 +599,25 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
                   onMouseLeave={() => handleLeave(c.name + i)}
                   style={{
                     position: "relative",
-                    height: 36,
-                    borderRadius: 5,
+                    height: 38,
+                    borderRadius: 6,
                     overflow: "hidden",
                     border: isRelated ? "1px solid #c9a84c66" : "1px solid rgba(255,255,255,0.04)",
-                    boxShadow: isRelated ? "0 0 10px #c9a84c22" : "none",
+                    boxShadow: isRelated ? "0 0 12px #c9a84c22" : "0 1px 3px rgba(0,0,0,0.2)",
                     background: "#080808",
                     cursor: "pointer",
-                    transition: "all 0.2s cubic-bezier(0.19,1,0.22,1)"
+                    transition: "all 0.2s cubic-bezier(0.19,1,0.22,1)",
+                    animation: `cardEntrance 0.25s ease ${i * 0.03}s both`,
                   }}
-                  onMouseOver={e => { e.currentTarget.style.transform = "translateX(4px)"; e.currentTarget.style.zIndex = 10; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
-                  onMouseOut={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.zIndex = 1; e.currentTarget.style.borderColor = isRelated ? "#c9a84c66" : "rgba(255,255,255,0.04)"; }}
+                  onMouseOver={e => { e.currentTarget.style.transform = "translateX(6px) scale(1.02)"; e.currentTarget.style.zIndex = 10; e.currentTarget.style.borderColor = "rgba(201,168,76,0.2)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.4)"; }}
+                  onMouseOut={e => { e.currentTarget.style.transform = "translateX(0) scale(1)"; e.currentTarget.style.zIndex = 1; e.currentTarget.style.borderColor = isRelated ? "#c9a84c66" : "rgba(255,255,255,0.04)"; e.currentTarget.style.boxShadow = isRelated ? "0 0 12px #c9a84c22" : "0 1px 3px rgba(0,0,0,0.2)"; }}
                 >
-                  {img && <img src={img} alt={c.name} style={{ width: "100%", height: 300, objectFit: "cover", objectPosition: "top", opacity: 0.5 }} />}
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(90deg, rgba(0,0,0,0.85) 25%, transparent 85%)", display: "flex", alignItems: "center", padding: "0 8px" }}>
-                    <div style={{ fontSize: 9, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {img && <img src={img} alt={c.name} style={{ width: "100%", height: 300, objectFit: "cover", objectPosition: "top", opacity: 0.45 }} />}
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(90deg, rgba(0,0,0,0.88) 20%, rgba(0,0,0,0.4) 60%, transparent 90%)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px" }}>
+                    <div style={{ fontSize: 9, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
                       <span style={{ color: "#c9a84c", fontWeight: 700, marginRight: 4, fontFamily: "'Cinzel', serif" }}>{c.qty}x</span>{c.name}
                     </div>
+                    {manaCost && <span style={{ fontSize: 8, color: "#55555588", fontFamily: "'Cinzel', serif", letterSpacing: 0.5, flexShrink: 0, marginLeft: 4 }}>{manaCost}</span>}
                   </div>
                 </div>
               );
@@ -911,108 +915,116 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 5, marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: 12, position: "relative", flexWrap: "wrap" }}>
-        {onSave && (
-          <button onClick={() => onSave(deck)} style={{ ...xBtn, background: "linear-gradient(135deg, #0f1f0f, #0a140a)", borderColor: "#4DB87A22", color: "#4DB87A", borderRadius: 6, transition: "all 0.25s" }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = "#4DB87A44"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(77,184,122,0.1)"; }}
-            onMouseOut={e => { e.currentTarget.style.borderColor = "#4DB87A22"; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            💾 Save
-          </button>
-        )}
-        <button onClick={() => setIsEditMode(!isEditMode)} style={{ ...xBtn, background: isEditMode ? "#E05A5008" : "rgba(0,0,0,0.3)", borderColor: isEditMode ? "#E05A5044" : "rgba(255,255,255,0.05)", color: isEditMode ? "#E05A50" : "#666", borderRadius: 6, transition: "all 0.25s" }}>
-          ✏️ {isEditMode ? "Done" : "Edit"}
-        </button>
-
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setExportMode(exportMode ? null : "menu")} style={{ ...xBtn, background: exportMode ? "#1a1a1a" : "#0f0f0f" }}>
-            📤 Export
-          </button>
-
-          {exportMode === "menu" && (
-            <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, background: "#111", border: "1px solid #222", borderRadius: 6, padding: 6, display: "flex", flexDirection: "column", gap: 4, width: 140, zIndex: 50, animation: "fadeIn 0.15s ease", boxShadow: "0 10px 30px rgba(0,0,0,0.8)" }}>
-              <button
-                onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "text")); setExportMode(null); }}
-                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#ccc" }}
-                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
-              >📋 Copy Text List</button>
-              <button
-                onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "arena")); setExportMode(null); }}
-                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#4DA3D4" }}
-                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
-              >🎮 Copy for MTGA</button>
-              <div style={{ height: 1, background: "#222", margin: "2px 0" }} />
-              <button
-                onClick={() => {
-                  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([exportDeck(deck, "text")], { type: "text/plain" })); a.download = "deck.txt"; a.click(); setExportMode(null);
-                }}
-                style={{ ...xBtn, textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", color: "#ccc" }}
-                onMouseOver={e => e.currentTarget.style.background = "#1a1a1a"} onMouseOut={e => e.currentTarget.style.background = "transparent"}
-              >💾 Download .txt</button>
-            </div>
+      <div style={{ display: "flex", gap: 4, marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: 12, position: "relative", flexWrap: "wrap", alignItems: "center" }}>
+        {/* Core Actions */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "2px 4px", background: "rgba(0,0,0,0.15)", borderRadius: 8 }}>
+          {onSave && (
+            <button onClick={() => onSave(deck)} style={{ ...xBtn, background: "linear-gradient(135deg, #0f1f0f, #0a140a)", borderColor: "#4DB87A22", color: "#4DB87A", borderRadius: 6, transition: "all 0.25s" }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = "#4DB87A44"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(77,184,122,0.1)"; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = "#4DB87A22"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              💾 Save
+            </button>
           )}
+          <button onClick={() => setIsEditMode(!isEditMode)} style={{ ...xBtn, background: isEditMode ? "#E05A5008" : "rgba(0,0,0,0.3)", borderColor: isEditMode ? "#E05A5044" : "rgba(255,255,255,0.05)", color: isEditMode ? "#E05A50" : "#666", borderRadius: 6, transition: "all 0.25s" }}>
+            ✏️ {isEditMode ? "Done" : "Edit"}
+          </button>
+
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setExportMode(exportMode ? null : "menu")} style={{ ...xBtn, background: exportMode ? "#1a1a1a" : "rgba(0,0,0,0.3)", borderRadius: 6 }}>
+              📤 Export
+            </button>
+
+            {exportMode === "menu" && (
+              <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, background: "rgba(14,14,14,0.98)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: 6, display: "flex", flexDirection: "column", gap: 2, width: 160, zIndex: 50, animation: "slideUp 0.2s ease", boxShadow: "0 16px 40px rgba(0,0,0,0.85), 0 0 0 1px rgba(0,0,0,0.5)" }}>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "text")); setExportMode(null); }}
+                  style={{ ...xBtn, textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", color: "#ccc", borderRadius: 6 }}
+                  onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }} onMouseOut={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#ccc"; }}
+                >📋 Copy Text List</button>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(exportDeck(deck, "arena")); setExportMode(null); }}
+                  style={{ ...xBtn, textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", color: "#4DA3D4", borderRadius: 6 }}
+                  onMouseOver={e => { e.currentTarget.style.background = "rgba(77,163,212,0.06)"; }} onMouseOut={e => { e.currentTarget.style.background = "transparent"; }}
+                >🎮 Copy for MTGA</button>
+                <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "2px 6px" }} />
+                <button
+                  onClick={() => {
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([exportDeck(deck, "text")], { type: "text/plain" })); a.download = "deck.txt"; a.click(); setExportMode(null);
+                  }}
+                  style={{ ...xBtn, textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", color: "#ccc", borderRadius: 6 }}
+                  onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }} onMouseOut={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#ccc"; }}
+                >💾 Download .txt</button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {onGenerateGuide && !sbGuide && (
+        <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.04)", margin: "0 2px", flexShrink: 0 }} />
+
+        {/* AI Analysis Actions */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "2px 4px", background: "rgba(0,0,0,0.15)", borderRadius: 8 }}>
+          {onGenerateGuide && !sbGuide && (
+            <button
+              onClick={async () => {
+                setIsGeneratingGuide(true);
+                const res = await onGenerateGuide(deck);
+                if (res) setSbGuide(res);
+                setIsGeneratingGuide(false);
+              }}
+              disabled={isGeneratingGuide}
+              style={{ ...xBtn, background: "linear-gradient(135deg, #182a2a, #101818)", borderColor: "#4DA3D433", color: "#4DA3D4", borderRadius: 6 }}
+            >
+              {isGeneratingGuide ? "⏳ Generating..." : "📑 SB Guide"}
+            </button>
+          )}
+
           <button
-            onClick={async () => {
-              setIsGeneratingGuide(true);
-              const res = await onGenerateGuide(deck);
-              if (res) setSbGuide(res);
-              setIsGeneratingGuide(false);
+            onClick={() => {
+              setIsSimulating(true);
+              setTimeout(() => {
+                const res = runGoldfishSim(deck.mainboard);
+                setGoldfishData(res);
+                setIsSimulating(false);
+              }, 600);
             }}
-            disabled={isGeneratingGuide}
-            style={{ ...xBtn, background: "linear-gradient(135deg, #182a2a, #101818)", borderColor: "#4DA3D433", color: "#4DA3D4" }}
+            disabled={isSimulating}
+            style={{ ...xBtn, background: goldfishData ? "#c9a84c11" : "rgba(0,0,0,0.3)", color: goldfishData ? "#c9a84c" : "#777", borderRadius: 6 }}
           >
-            {isGeneratingGuide ? "⏳ Generating..." : "📑 Sideboard Guide"}
+            {isSimulating ? "⏳..." : "📊 Stats"}
           </button>
-        )}
 
-        <button
-          onClick={() => {
-            setIsSimulating(true);
-            setTimeout(() => {
-              const res = runGoldfishSim(deck.mainboard);
-              setGoldfishData(res);
-              setIsSimulating(false);
-            }, 600);
-          }}
-          disabled={isSimulating}
-          style={{ ...xBtn, background: goldfishData ? "#c9a84c11" : "#0f0f0f", color: goldfishData ? "#c9a84c" : "#777" }}
-        >
-          {isSimulating ? "⏳ Calculating..." : "📊 Stats"}
-        </button>
+          {onBudgetize && (
+            <button
+              onClick={async () => {
+                setIsBudgetizing(true);
+                const res = await onBudgetize(deck, totalPrice > 100 ? "budget" : "power");
+                if (res) setBudgetSuggestions(res);
+                setIsBudgetizing(false);
+              }}
+              disabled={isBudgetizing}
+              style={{ ...xBtn, color: "#4DB87A", borderColor: "#4DB87A33", borderRadius: 6 }}
+            >
+              {isBudgetizing ? "⏳..." : totalPrice > 100 ? "💸 Budget" : "🚀 Power"}
+            </button>
+          )}
 
-        {onBudgetize && (
           <button
-            onClick={async () => {
-              setIsBudgetizing(true);
-              const res = await onBudgetize(deck, totalPrice > 100 ? "budget" : "power");
-              if (res) setBudgetSuggestions(res);
-              setIsBudgetizing(false);
-            }}
-            disabled={isBudgetizing}
-            style={{ ...xBtn, color: "#4DB87A", borderColor: "#4DB87A33" }}
+            onClick={handleAnalyzeMeta}
+            disabled={isAnalyzingMeta}
+            style={{ ...xBtn, background: metaData ? "rgba(77, 163, 212, 0.1)" : "rgba(0,0,0,0.3)", color: metaData ? "#4DA3D4" : "#777", borderColor: metaData ? "#4DA3D433" : "rgba(255,255,255,0.05)", borderRadius: 6 }}
           >
-            {isBudgetizing ? "⏳ Analyzing..." : totalPrice > 100 ? "💸 Budgetize" : "🚀 Power Up"}
+            {isAnalyzingMeta ? `⏳ ${metaStatus || "..."}` : "📈 Meta"}
           </button>
-        )}
 
-        <button
-          onClick={handleAnalyzeMeta}
-          disabled={isAnalyzingMeta}
-          style={{ ...xBtn, background: metaData ? "rgba(77, 163, 212, 0.1)" : "#0f0f0f", color: metaData ? "#4DA3D4" : "#777", borderColor: metaData ? "#4DA3D433" : "#1f1f1f" }}
-        >
-          {isAnalyzingMeta ? `⏳ ${metaStatus || "Analyzing..."}` : "📈 Meta Score"}
-        </button>
-
-        <button
-          onClick={handleIdentifySynergies}
-          disabled={isIdentifyingSynergies}
-          style={{ ...xBtn, background: synergyMap ? "rgba(201, 168, 76, 0.1)" : "#0f0f0f", color: synergyMap ? "#c9a84c" : "#777", borderColor: synergyMap ? "#c9a84c33" : "#1f1f1f" }}
-        >
-          {isIdentifyingSynergies ? "⏳ Detecting..." : "🧩 Map Synergies"}
-        </button>
+          <button
+            onClick={handleIdentifySynergies}
+            disabled={isIdentifyingSynergies}
+            style={{ ...xBtn, background: synergyMap ? "rgba(201, 168, 76, 0.1)" : "rgba(0,0,0,0.3)", color: synergyMap ? "#c9a84c" : "#777", borderColor: synergyMap ? "#c9a84c33" : "rgba(255,255,255,0.05)", borderRadius: 6 }}
+          >
+            {isIdentifyingSynergies ? "⏳..." : "🧩 Synergy"}
+          </button>
+        </div>
 
         <div style={{ flex: 1 }} />
         <button onClick={() => {
@@ -1021,7 +1033,10 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
           setTestHand(drawHand(shuffled, 7));
           setTestDeck(shuffled.slice(7));
           setMullCount(0);
-        }} style={{ ...xBtn, background: "linear-gradient(135deg, #2a2218, #181210)", borderColor: "#c9a84c33", color: "#c9a84c" }}>
+        }} style={{ ...xBtn, background: "linear-gradient(135deg, #2a2218, #181210)", borderColor: "#c9a84c33", color: "#c9a84c", borderRadius: 8, padding: "6px 14px", transition: "all 0.25s", boxShadow: "0 2px 8px rgba(201,168,76,0.05)" }}
+          onMouseOver={e => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(201,168,76,0.15)"; e.currentTarget.style.borderColor = "#c9a84c55"; }}
+          onMouseOut={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(201,168,76,0.05)"; e.currentTarget.style.borderColor = "#c9a84c33"; }}
+        >
           🃏 Test Hand
         </button>
       </div>
@@ -1378,17 +1393,19 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx 
                 📥 Import & Analyze Deck
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxWidth: 580, margin: "0 auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 600, margin: "0 auto" }}>
               {QUICK_PROMPTS.map((qp, i) => (
                 <button key={i} onClick={() => send(qp.prompt)} style={{
-                  padding: "12px 14px", background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.04)",
-                  borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
-                  animation: `cardEntrance 0.4s ease ${i * 0.05}s both`,
+                  padding: "14px 16px", background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.04)",
+                  borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all 0.3s cubic-bezier(0.19,1,0.22,1)",
+                  animation: `cardEntrance 0.4s ease ${i * 0.06}s both`,
+                  position: "relative", overflow: "hidden",
                 }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c22"; e.currentTarget.style.background = "rgba(201,168,76,0.04)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                  onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"; e.currentTarget.style.background = "rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 10, color: "#c9a84c", letterSpacing: 1, marginBottom: 4 }}>{qp.label}</div>
-                  <div style={{ fontSize: 10, color: "#444", fontFamily: "'Crimson Text', serif", lineHeight: 1.5 }}>{qp.prompt.substring(0, 80)}...</div>
+                  onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c33"; e.currentTarget.style.background = "rgba(201,168,76,0.05)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(201,168,76,0.06)"; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"; e.currentTarget.style.background = "rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: "#c9a84c", letterSpacing: 1, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>{qp.label}</div>
+                  <div style={{ fontSize: 10, color: "#444", fontFamily: "'Crimson Text', serif", lineHeight: 1.6 }}>{qp.prompt.substring(0, 85)}...</div>
+                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1, background: "linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent)", opacity: 0 , transition: "opacity 0.3s" }} />
                 </button>
               ))}
             </div>
@@ -1397,7 +1414,12 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx 
         {messages.map((msg, i) => <AgentMessage key={i} msg={msg} onHover={setHoveredCard} onSaveDeck={onSaveDeck} onCtx={onCtx} />)}
         <div ref={chatEndRef} />
       </div>
-      {hoveredCard && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none", animation: "slideUp 0.15s ease" }}><img src={hoveredCard} alt="" style={{ width: 260, borderRadius: 14, boxShadow: "0 16px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)" }} /></div>}
+      {hoveredCard && <div className="card-preview-enter" style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none" }}>
+        <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06), 0 0 30px rgba(201,168,76,0.08)" }}>
+          <img src={hoveredCard} alt="" style={{ width: 265, display: "block", borderRadius: 14 }} />
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #c9a84c44, #c9a84c, #c9a84c44)", animation: "shimmer 3s ease infinite", backgroundSize: "200% 100%" }} />
+        </div>
+      </div>}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.03)", padding: "12px 0 4px" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.05)", padding: "10px 12px", transition: "border-color 0.3s, box-shadow 0.3s" }}
           onFocus={e => { e.currentTarget.style.borderColor = "#c9a84c22"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,168,76,0.04)"; }}
@@ -1556,7 +1578,12 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
         </div>
       </div>
       <DeckDisplay deck={deck} onHover={setHov} onSave={onSaveDeck} onGenerateGuide={handleGenerateGuide} onBudgetize={handleBudgetize} onCtx={onCtx} />
-      {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1100, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
+      {hov && <div className="card-preview-enter" style={{ position: "fixed", right: 20, top: 90, zIndex: 1100, pointerEvents: "none" }}>
+        <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06), 0 0 30px rgba(201,168,76,0.08)" }}>
+          <img src={hov} alt="" style={{ width: 260, display: "block", borderRadius: 12 }} />
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #c9a84c44, #c9a84c, #c9a84c44)", animation: "shimmer 3s ease infinite", backgroundSize: "200% 100%" }} />
+        </div>
+      </div>}
       {deck.analysis && <div style={{ marginTop: 14, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #1a1a1a" }}>
         <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>ANALYSIS</div>
         <div style={{ fontSize: 12, color: "#888", fontFamily: "'Crimson Text', serif", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{deck.analysis}</div>
@@ -1860,20 +1887,31 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
     const colors = deckColorIds(entry.deck);
     const count = entry.deck.mainboard.reduce((a, c) => a + c.qty, 0);
     const isSelected = selected.includes(entry.id);
+    // Find a key card with art for the thumbnail
+    const keyCard = entry.deck.mainboard.find(c => c.cardData?.image_uris?.art_crop && !c.cardData?.type_line?.includes("Land"));
+    const artCrop = keyCard?.cardData?.image_uris?.art_crop;
     return (
       <div style={{
         background: isSelected ? "rgba(201,168,76,0.03)" : "rgba(0,0,0,0.25)",
         border: `1px solid ${isSelected ? "#c9a84c33" : "rgba(255,255,255,0.04)"}`,
-        borderRadius: 10, padding: 14, cursor: "pointer",
+        borderRadius: 12, cursor: "pointer",
         transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
         position: "relative", overflow: "hidden",
-        boxShadow: isSelected ? "0 0 20px rgba(201,168,76,0.05)" : "none",
+        boxShadow: isSelected ? "0 4px 24px rgba(201,168,76,0.08)" : "0 2px 8px rgba(0,0,0,0.2)",
       }}
         onClick={() => toggle(entry.id)}
-        onMouseOver={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c55" : "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-        onMouseOut={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c33" : "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}>
-        {isSelected && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #c9a84c, #f0d68a)" }} />}
-        {isSelected && <div style={{ position: "absolute", top: 8, right: 8, background: "#c9a84c", color: "#0a0a0a", fontSize: 7, fontWeight: 700, padding: "2px 6px", borderRadius: 4, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>SELECTED</div>}
+        onMouseOver={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c55" : "rgba(255,255,255,0.1)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = isSelected ? "0 8px 30px rgba(201,168,76,0.12)" : "0 8px 24px rgba(0,0,0,0.35)"; }}
+        onMouseOut={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c33" : "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = isSelected ? "0 4px 24px rgba(201,168,76,0.08)" : "0 2px 8px rgba(0,0,0,0.2)"; }}>
+        {/* Art banner */}
+        {artCrop && (
+          <div style={{ height: 48, overflow: "hidden", position: "relative", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <img src={artCrop} alt="" style={{ width: "100%", height: 80, objectFit: "cover", objectPosition: "center 30%", opacity: isSelected ? 0.35 : 0.2, transition: "opacity 0.3s" }} />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 20%, rgba(0,0,0,0.9))" }} />
+          </div>
+        )}
+        <div style={{ padding: artCrop ? "8px 14px 14px" : 14 }}>
+        {isSelected && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #c9a84c, #f0d68a)", animation: "shimmer 3s ease infinite", backgroundSize: "200% 100%" }} />}
+        {isSelected && <div style={{ position: "absolute", top: artCrop ? 56 : 8, right: 8, background: "linear-gradient(135deg, #c9a84c, #f0d68a)", color: "#0a0a0a", fontSize: 7, fontWeight: 700, padding: "2px 8px", borderRadius: 5, fontFamily: "'Cinzel', serif", letterSpacing: 1, boxShadow: "0 2px 6px rgba(201,168,76,0.2)" }}>SELECTED</div>}
         <div style={{ display: "flex", gap: 5, marginBottom: 6, alignItems: "center" }}>
           {colors.map(c => <span key={c} style={{ fontSize: 11 }}>{COLORS.find(x => x.id === c)?.sym || "?"}</span>)}
           <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: isSelected ? "#c9a84c" : "#999", fontWeight: 600, flex: 1, transition: "color 0.2s" }}>{entry.name}</span>
@@ -1892,6 +1930,7 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
             onMouseOver={e => { e.currentTarget.style.color = "#E05A50"; e.currentTarget.style.borderColor = "#E05A5044"; }}
             onMouseOut={e => { e.currentTarget.style.color = "#E05A5088"; e.currentTarget.style.borderColor = "#E05A5022"; }}
           >✗</button>
+        </div>
         </div>
       </div>
     );
@@ -2003,25 +2042,45 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
       {standings.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>STANDINGS</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {standings.map((s, i) => {
               const total = s.wins + s.losses;
               const pct = total ? Math.round((s.wins / total) * 100) : 0;
               const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`;
               const topMvp = Object.entries(s.mvps).sort((a, b) => b[1] - a[1])[0];
+              const rankColor = i === 0 ? "#c9a84c" : i === 1 ? "#b0b0b0" : i === 2 ? "#cd7f32" : "#555";
+              const barColor = pct >= 60 ? "#4DB87A" : pct <= 40 ? "#E05A50" : "#c9a84c";
               return (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: i === 0 ? "#0f0e08" : "#0c0c0c", border: `1px solid ${i === 0 ? "#c9a84c22" : "#151515"}`, borderRadius: 6 }}>
-                  <span style={{ fontSize: 16, width: 28, textAlign: "center" }}>{medal}</span>
-                  <span style={{ fontFamily: "'Cinzel', serif", fontSize: 13, color: i === 0 ? "#c9a84c" : "#aaa", flex: 1, fontWeight: 600 }}>{s.name}</span>
-                  <div style={{ textAlign: "center", minWidth: 60 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: pct >= 60 ? "#4DB87A" : pct <= 40 ? "#E05A50" : "#888", fontFamily: "'Cinzel', serif" }}>{s.wins}-{s.losses}</div>
-                    <div style={{ fontSize: 9, color: "#444" }}>{pct}% WR</div>
+                <div key={s.id} style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                  background: i === 0 ? "linear-gradient(135deg, #0f0e08, #12100a)" : "#0c0c0c",
+                  border: `1px solid ${i === 0 ? "#c9a84c22" : "#151515"}`,
+                  borderRadius: 10, transition: "all 0.2s",
+                  borderLeft: `3px solid ${rankColor}`,
+                  animation: `cardEntrance 0.3s ease ${i * 0.06}s both`,
+                }}
+                  onMouseOver={e => { e.currentTarget.style.background = i === 0 ? "linear-gradient(135deg, #141208, #18140c)" : "#0e0e0e"; e.currentTarget.style.transform = "translateX(2px)"; }}
+                  onMouseOut={e => { e.currentTarget.style.background = i === 0 ? "linear-gradient(135deg, #0f0e08, #12100a)" : "#0c0c0c"; e.currentTarget.style.transform = "translateX(0)"; }}
+                >
+                  <span style={{ fontSize: 18, width: 30, textAlign: "center", filter: i < 3 ? "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" : "none" }}>{medal}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", fontSize: 13, color: i === 0 ? "#c9a84c" : "#aaa", fontWeight: 600, display: "block", marginBottom: 4 }}>{s.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ flex: 1, height: 4, background: "#151515", borderRadius: 4, overflow: "hidden", maxWidth: 120 }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${barColor}88, ${barColor})`, borderRadius: 4, animation: "progressFill 0.8s ease-out", transition: "width 0.5s ease" }} />
+                      </div>
+                      <span style={{ fontSize: 9, color: barColor, fontWeight: 600, fontFamily: "'Cinzel', serif" }}>{pct}%</span>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "center", minWidth: 50 }}>
-                    <div style={{ fontSize: 11, color: "#666" }}>{s.gamesWon}-{s.gamesLost}</div>
-                    <div style={{ fontSize: 8, color: "#333" }}>games</div>
+                  <div style={{ textAlign: "center", minWidth: 55, padding: "4px 8px", background: "rgba(0,0,0,0.25)", borderRadius: 8 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: barColor, fontFamily: "'Cinzel', serif" }}>{s.wins}-{s.losses}</div>
+                    <div style={{ fontSize: 8, color: "#444", letterSpacing: 1 }}>MATCH</div>
                   </div>
-                  {topMvp && <div style={{ fontSize: 9, color: "#555", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>MVP: {topMvp[0]}</div>}
+                  <div style={{ textAlign: "center", minWidth: 45, padding: "4px 8px", background: "rgba(0,0,0,0.15)", borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, color: "#666", fontWeight: 600 }}>{s.gamesWon}-{s.gamesLost}</div>
+                    <div style={{ fontSize: 8, color: "#333", letterSpacing: 1 }}>GAME</div>
+                  </div>
+                  {topMvp && <div style={{ fontSize: 9, color: "#c9a84c88", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "3px 8px", background: "rgba(201,168,76,0.04)", borderRadius: 5, border: "1px solid rgba(201,168,76,0.08)" }}>⭐ {topMvp[0]}</div>}
                 </div>
               );
             })}
@@ -2036,31 +2095,42 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
       {results && results.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>MATCH DETAILS</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {results.map((r, i) => (
-              <div key={i} style={{ background: "#0c0c0c", border: "1px solid #181818", borderRadius: 6, overflow: "hidden" }}>
-                <div onClick={() => setExpandedMatch(expandedMatch === i ? null : i)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", cursor: "pointer" }}
-                  onMouseOver={e => e.currentTarget.style.background = "#101010"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                  <span style={{ fontSize: 11, color: "#c9a84c", fontFamily: "'Cinzel', serif", minWidth: 16 }}>{expandedMatch === i ? "▼" : "▶"}</span>
-                  <span style={{ fontSize: 12, color: "#aaa", flex: 1 }}>{r.deckA.name} <span style={{ color: "#333" }}>vs</span> {r.deckB.name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#c9a84c", fontFamily: "'Cinzel', serif" }}>{r.score}</span>
-                  <span style={{ fontSize: 10, color: "#4DB87A" }}>✦ {r.winnerName}</span>
+              <div key={i} style={{ background: "#0c0c0c", border: "1px solid #181818", borderRadius: 10, overflow: "hidden", transition: "all 0.2s", animation: `cardEntrance 0.3s ease ${i * 0.04}s both` }}
+                onMouseOver={e => e.currentTarget.style.borderColor = "#222"} onMouseOut={e => e.currentTarget.style.borderColor = "#181818"}>
+                <div onClick={() => setExpandedMatch(expandedMatch === i ? null : i)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", transition: "background 0.15s" }}
+                  onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                  <span style={{ fontSize: 11, color: "#c9a84c", fontFamily: "'Cinzel', serif", minWidth: 16, transition: "transform 0.2s", transform: expandedMatch === i ? "rotate(90deg)" : "rotate(0)" }}>▶</span>
+                  <span style={{ fontSize: 12, color: "#aaa", flex: 1 }}>{r.deckA.name} <span style={{ color: "#333", margin: "0 4px", fontSize: 10, letterSpacing: 1 }}>VS</span> {r.deckB.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#c9a84c", fontFamily: "'Cinzel', serif", padding: "2px 10px", background: "rgba(201,168,76,0.06)", borderRadius: 6 }}>{r.score}</span>
+                  <span style={{ fontSize: 10, color: "#4DB87A", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4DB87A", boxShadow: "0 0 6px #4DB87A44" }} />
+                    {r.winnerName}
+                  </span>
                 </div>
                 {expandedMatch === i && (
-                  <div style={{ padding: "0 12px 12px", borderTop: "1px solid #151515" }}>
-                    {r.games.map((g, j) => (
-                      <div key={j} style={{ padding: "6px 0", borderBottom: j < r.games.length - 1 ? "1px solid #0f0f0f" : "none" }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <span style={{ fontSize: 10, color: "#555", width: 50 }}>Game {g.game_num}</span>
-                          <span style={{ fontSize: 11, color: "#4DB87A", fontWeight: 600 }}>{g.winnerName}</span>
-                          <span style={{ fontSize: 9, color: "#333" }}>Turn {g.turn_won}</span>
-                        </div>
-                        {g.key_play && <div style={{ fontSize: 10, color: "#666", marginTop: 2, fontStyle: "italic" }}>⚡ {g.key_play}</div>}
-                        {g.narrative && <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{g.narrative}</div>}
+                  <div style={{ padding: "4px 14px 14px", borderTop: "1px solid rgba(255,255,255,0.03)", animation: "slideUp 0.2s ease" }}>
+                    {/* Game timeline */}
+                    {r.games.length > 0 && (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 12, marginTop: 8 }}>
+                        {r.games.map((g, j) => {
+                          const isWinA = g.winnerName === r.deckA.name;
+                          return (
+                            <div key={j} style={{ flex: 1, padding: "8px 10px", background: "rgba(0,0,0,0.3)", borderRadius: 8, borderTop: `2px solid ${isWinA ? "#4DA3D4" : "#E05A50"}`, animation: `cardEntrance 0.2s ease ${j * 0.08}s both` }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                                <span style={{ fontSize: 9, color: "#555", fontWeight: 700, letterSpacing: 1, fontFamily: "'Cinzel', serif" }}>G{g.game_num}</span>
+                                <span style={{ fontSize: 8, color: "#444" }}>T{g.turn_won}</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: isWinA ? "#4DA3D4" : "#E05A50", fontWeight: 600, marginBottom: 2 }}>{g.winnerName}</div>
+                              {g.key_play && <div style={{ fontSize: 9, color: "#555", fontStyle: "italic", lineHeight: 1.3 }}>⚡ {g.key_play}</div>}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                    {r.mvp && <div style={{ fontSize: 10, color: "#c9a84c", marginTop: 6 }}>MVP: {r.mvp}</div>}
-                    {r.analysis && <div style={{ fontSize: 11, color: "#777", marginTop: 6, fontFamily: "'Crimson Text', serif", lineHeight: 1.6 }}>{r.analysis}</div>}
+                    )}
+                    {r.mvp && <div style={{ fontSize: 10, color: "#c9a84c", marginBottom: 8, padding: "4px 10px", background: "rgba(201,168,76,0.04)", borderRadius: 6, display: "inline-block", border: "1px solid rgba(201,168,76,0.08)" }}>⭐ MVP: {r.mvp}</div>}
+                    {r.analysis && <div style={{ fontSize: 11, color: "#777", fontFamily: "'Crimson Text', serif", lineHeight: 1.7, padding: "8px 0" }}>{r.analysis}</div>}
                   </div>
                 )}
               </div>
@@ -2097,7 +2167,12 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
               <DeckDisplay deck={viewDeck.deck} onHover={setHov} listHeight="calc(100vh - 220px)" />
             </div>
           </div>
-          {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none", animation: "slideUp 0.15s ease" }}><img src={hov} alt="" style={{ width: 240, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
+          {hov && <div className="card-preview-enter" style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none" }}>
+            <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06), 0 0 30px rgba(201,168,76,0.08)" }}>
+              <img src={hov} alt="" style={{ width: 245, display: "block", borderRadius: 12 }} />
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #c9a84c44, #c9a84c, #c9a84c44)", animation: "shimmer 3s ease infinite", backgroundSize: "200% 100%" }} />
+            </div>
+          </div>}
         </div>
       )}
     </div>
@@ -2437,9 +2512,60 @@ export default function MTGDeckArchitect() {
           from { transform: scaleY(0); }
           to { transform: scaleY(1); }
         }
+        @keyframes shimmer {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes breathe {
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.06); opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes tabSlide {
+          from { opacity: 0; transform: scaleX(0.5); }
+          to { opacity: 1; transform: scaleX(1); }
+        }
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(201,168,76,0.1); }
+          50% { box-shadow: 0 0 16px rgba(201,168,76,0.25); }
+        }
+        @keyframes cardReveal {
+          from { opacity: 0; transform: translateY(8px) scale(0.96); filter: blur(4px); }
+          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+        @keyframes progressFill {
+          from { width: 0%; }
+        }
+        @keyframes gentleFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
         button { font-family: inherit; }
         button:focus-visible { outline: 1px solid #c9a84c55; outline-offset: 2px; }
         input:focus-visible, textarea:focus-visible { border-color: #c9a84c44 !important; box-shadow: 0 0 0 2px rgba(201,168,76,0.08) !important; }
+        .tab-btn { position: relative; overflow: hidden; }
+        .tab-btn::after { content: ''; position: absolute; bottom: 0; left: 20%; right: 20%; height: 2px; background: linear-gradient(90deg, transparent, #c9a84c, transparent); transform: scaleX(0); transition: transform 0.3s cubic-bezier(0.19,1,0.22,1); }
+        .tab-btn.active::after { transform: scaleX(1); }
+        .hover-lift { transition: all 0.25s cubic-bezier(0.19,1,0.22,1); }
+        .hover-lift:hover { transform: translateY(-2px); }
+        .card-preview-enter { animation: cardReveal 0.2s ease-out; }
+        @media (max-width: 768px) {
+          .responsive-header-tabs { flex-wrap: wrap; gap: 2px !important; }
+          .responsive-header-tabs button { padding: 5px 8px !important; font-size: 8px !important; }
+          .responsive-main { padding-left: 8px !important; padding-right: 8px !important; }
+        }
       `}</style>
 
       {/* Header */}
@@ -2452,7 +2578,7 @@ export default function MTGDeckArchitect() {
           <span style={{ color: "#555", fontSize: 10, fontStyle: "italic", opacity: 0.6 }}>MTG Deck Architect</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", background: "rgba(0,0,0,0.35)", borderRadius: 10, padding: 3, border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="responsive-header-tabs" style={{ display: "flex", background: "rgba(0,0,0,0.35)", borderRadius: 10, padding: 3, border: "1px solid rgba(255,255,255,0.04)", gap: 1 }}>
             {[
               { id: "agent", label: "AGENT", icon: "✦" },
               { id: "builder", label: "BUILDER", icon: "⚙" },
@@ -2460,16 +2586,17 @@ export default function MTGDeckArchitect() {
               { id: "vault", label: "VAULT", icon: "💎" },
               { id: "inventory", label: "COLLECTION", icon: "🎒" },
             ].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
-                padding: "7px 16px", border: "none", cursor: "pointer", borderRadius: 8, position: "relative",
+              <button key={t.id} className={`tab-btn${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)} style={{
+                padding: "7px 16px", border: "none", cursor: "pointer", borderRadius: 8,
                 background: tab === t.id ? "rgba(201, 168, 76, 0.12)" : "transparent",
                 fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: 1.5,
                 color: tab === t.id ? "#c9a84c" : "#555", transition: "all 0.25s cubic-bezier(0.19, 1, 0.22, 1)",
                 boxShadow: tab === t.id ? "0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(201,168,76,0.1)" : "none",
+                transform: tab === t.id ? "translateY(-1px)" : "translateY(0)",
               }}
-                onMouseOver={e => { if (tab !== t.id) e.currentTarget.style.color = "#888"; }}
-                onMouseOut={e => { if (tab !== t.id) e.currentTarget.style.color = "#555"; }}
-              ><span style={{ marginRight: 4, fontSize: 10 }}>{t.icon}</span> {t.label}</button>
+                onMouseOver={e => { if (tab !== t.id) { e.currentTarget.style.color = "#888"; e.currentTarget.style.background = "rgba(255,255,255,0.02)"; } }}
+                onMouseOut={e => { if (tab !== t.id) { e.currentTarget.style.color = "#555"; e.currentTarget.style.background = "transparent"; } }}
+              ><span style={{ marginRight: 4, fontSize: 10, transition: "transform 0.2s", display: "inline-block", transform: tab === t.id ? "scale(1.15)" : "scale(1)" }}>{t.icon}</span> {t.label}</button>
             ))}
           </div>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.06)" }} />
@@ -2491,7 +2618,7 @@ export default function MTGDeckArchitect() {
       </div>
 
       {/* Main content — paddingTop offsets the fixed header (~60px) */}
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "76px 16px 16px", flex: 1 }}>
+      <div className="responsive-main" style={{ maxWidth: 920, margin: "0 auto", padding: "76px 16px 16px", flex: 1 }}>
         {tab === "agent" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "builder" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "arena" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
