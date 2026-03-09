@@ -775,7 +775,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20 }}>
-        <div style={{ maxHeight: listHeight || (compact ? 300 : "75vh"), overflowY: "auto", paddingRight: 4 }}>
+        <div style={{ maxHeight: listHeight || (compact ? 300 : "75vh"), overflowY: listHeight === "none" ? "visible" : "auto", paddingRight: 4 }}>
           {viewMode === "mosaic" ? (
             <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : viewMode === "stack" ? (
