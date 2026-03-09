@@ -1315,7 +1315,7 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx 
 
       {/* Import Modal */}
       {importModalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setImportModalOpen(false)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setImportModalOpen(false)}>
           <div style={{ background: "#0d0d0d", border: "1px solid #4DA3D433", borderRadius: 12, padding: 24, width: 480, maxWidth: "90%" }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 15, color: "#4DA3D4", marginBottom: 16, letterSpacing: 2 }}>📥 IMPORT DECK FOR ANALYSIS</h3>
             <p style={{ fontSize: 12, color: "#aaa", fontFamily: "'Crimson Text', serif", marginBottom: 12 }}>Paste your decklist below (Arena, MTGO, or plaintext format). Arcanum will analyze it, identify weaknesses, and suggest competitive upgrades.</p>
@@ -1447,7 +1447,7 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
         </div>
       </div>
       <DeckDisplay deck={deck} onHover={setHov} onSave={onSaveDeck} onGenerateGuide={handleGenerateGuide} onBudgetize={handleBudgetize} onCtx={onCtx} />
-      {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
+      {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1100, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
       {deck.analysis && <div style={{ marginTop: 14, padding: 14, background: "#0d0d0d", borderRadius: 8, border: "1px solid #1a1a1a" }}>
         <div style={{ fontSize: 10, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" }}>ANALYSIS</div>
         <div style={{ fontSize: 12, color: "#888", fontFamily: "'Crimson Text', serif", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{deck.analysis}</div>
@@ -1960,15 +1960,15 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
 
       {/* Deck Viewer Modal */}
       {viewDeck && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setViewDeck(null)}>
-          <div style={{ maxWidth: 700, width: "100%", maxHeight: "90vh", overflowY: "auto", background: "#0a0a0a", borderRadius: 12, padding: 20, border: "1px solid #1a1a1a" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 76, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflowY: "auto" }} onClick={() => setViewDeck(null)}>
+          <div style={{ maxWidth: 700, width: "100%", background: "#0a0a0a", borderRadius: 12, padding: 20, border: "1px solid #1a1a1a", marginTop: 10 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 16, color: "#c9a84c" }}>{viewDeck.name}</h3>
               <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 14 }}>✕</button>
             </div>
             <DeckDisplay deck={viewDeck.deck} onHover={setHov} />
           </div>
-          {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 400, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
+          {hov && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 1200, pointerEvents: "none" }}><img src={hov} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
         </div>
       )}
     </div>
@@ -2025,7 +2025,7 @@ function SettingsModal({ config, setConfig, onClose }) {
     } catch (e) { setTestStatus("error:" + e.message); }
   };
 
-  const modalBg = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease" };
+  const modalBg = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease" };
   const panel = { background: "#0c0c0c", border: "1px solid #1a1a1a", borderRadius: 14, padding: "24px 28px", width: 460, maxHeight: "85vh", overflowY: "auto" };
   const label = { fontSize: 9, color: "#c9a84c88", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel', serif" };
   const inp = { width: "100%", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 5, padding: "8px 12px", color: "#bbb", fontSize: 12, fontFamily: "'Crimson Text', serif", outline: "none", boxSizing: "border-box" };
@@ -2433,7 +2433,7 @@ export default function MTGDeckArchitect() {
 
       {/* Save Modal */}
       {saveModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSaveModal(null)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSaveModal(null)}>
           <div style={{ background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 12, padding: 24, width: 380 }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 14, color: "#c9a84c", marginBottom: 16, letterSpacing: 2 }}>💎 SAVE TO VAULT</h3>
             <div style={{ marginBottom: 12 }}>
