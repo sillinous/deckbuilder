@@ -7,7 +7,12 @@
     <meta name="description" content="Autonomous AI deck architect with knowledge of every Magic: The Gathering card ever printed. Build competitive decks with zero constraints." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✦</text></svg>">
     <style>
-      body { margin: 0; background: #0a0a0a; }
+      body { margin: 0; background: #0a0a0a; overflow-x: hidden; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes shimmer { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      @keyframes breathe { 0%, 100% { box-shadow: 0 0 20px rgba(201, 168, 76, 0.08); } 50% { box-shadow: 0 0 40px rgba(201, 168, 76, 0.18); } }
     </style>
   </head>
   <body>
