@@ -744,7 +744,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
   const activeSynergies = activeCard && synergyMap ? synergyMap.synergies.filter(s => s.cards.includes(activeCard)) : [];
 
   return (
-    <div className="glass-panel" style={{ ...GLASS_STYLE, padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease" }}>
+    <div className={listHeight === "none" ? "" : "glass-panel"} style={{ ...(listHeight === "none" ? {} : GLASS_STYLE), padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease", height: listHeight === "none" ? "auto" : undefined, overflow: listHeight === "none" ? "visible" : undefined }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
@@ -1960,8 +1960,8 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
 
       {/* Deck Viewer Modal */}
       {viewDeck && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 76, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflowY: "auto" }} onClick={() => setViewDeck(null)}>
-          <div style={{ maxWidth: 800, width: "100%", background: "#0a0a0a", borderRadius: 12, padding: "26px 32px", border: "1px solid #1a1a1a", marginTop: 10 }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1100, overflowY: "auto" }} onClick={() => setViewDeck(null)}>
+          <div style={{ maxWidth: 800, margin: "90px auto 40px auto", background: "#0a0a0a", borderRadius: 12, padding: "26px 32px", border: "1px solid #1a1a1a" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c" }}>{viewDeck.name}</h3>
               <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 16 }}>✕</button>
