@@ -301,7 +301,7 @@ function InventoryManager({ inventory, onUpdate }) {
             />
             <button onClick={() => search(searchTerm)} style={{ ...xBtn, background: "#c9a84c", color: "#000", fontWeight: 700 }}>SEARCH</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 600, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "70vh", overflowY: "auto" }}>
             {searching ? <div style={{ color: "#555", fontSize: 11 }}>Searching...</div> : results.map(c => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d0d", borderRadius: 6, border: "1px solid #1a1a1a" }}>
                 <div style={{ fontSize: 12, color: "#aaa" }}>{c.name}</div>
@@ -315,7 +315,7 @@ function InventoryManager({ inventory, onUpdate }) {
         </div>
         <div>
           <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, marginBottom: 16, fontFamily: "'Cinzel', serif" }}>MY INVENTORY ({owned.length} UNIQUE)</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 680, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "75vh", overflowY: "auto" }}>
             {owned.length === 0 ? <div style={{ color: "#444", fontSize: 11, fontStyle: "italic" }}>No cards in collection yet.</div> : owned.reverse().map(([name, qty]) => (
               <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d0d", borderRadius: 6, border: "1px solid #1a1a1a" }}>
                 <div style={{ fontSize: 12, color: "#eee" }}>{name}</div>
@@ -775,7 +775,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, onSave, onGenerateGu
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20 }}>
-        <div style={{ maxHeight: compact ? 300 : 520, overflowY: "auto" }}>
+        <div style={{ maxHeight: compact ? 300 : "75vh", overflowY: "auto", paddingRight: 4 }}>
           {viewMode === "mosaic" ? (
             <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : viewMode === "stack" ? (
