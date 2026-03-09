@@ -9,20 +9,25 @@ export async function sfSearch(q) {
   return r.ok ? (await r.json()).data : [];
 }
 export async function sfNamed(n) {
-  const r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(n)}`);
+  let r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(n)}`);
+  if (!r.ok) {
+    // Fallback to fuzzy search if exact match fails (helps with AI typos or punctuation differences)
+    r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(n)}`);
+  }
   return r.ok ? await r.json() : null;
 }
 
 export function getCardImage(cd) {
   if (!cd) return null;
-  if (cd.image_uris?.normal) return cd.image_uris.normal;
+  const getUri = (uris) => uris ? (uris.normal || uris.large || uris.png || uris.small) : null;
+
+  const mainImage = getUri(cd.image_uris);
+  if (mainImage) return mainImage;
+
   if (cd.card_faces) {
-    // Check first face
-    if (cd.card_faces[0]?.image_uris?.normal) return cd.card_faces[0].image_uris.normal;
-    // Some formats like Meld or Aftermath might have them deeper or differently structured
-    // If the top level face doesn't have it, try to find ANY face with an image
     for (const face of cd.card_faces) {
-      if (face.image_uris?.normal) return face.image_uris.normal;
+      const faceImage = getUri(face.image_uris);
+      if (faceImage) return faceImage;
     }
   }
   return null;
