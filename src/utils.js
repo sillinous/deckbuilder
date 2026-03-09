@@ -13,6 +13,21 @@ export async function sfNamed(n) {
   return r.ok ? await r.json() : null;
 }
 
+export function getCardImage(cd) {
+  if (!cd) return null;
+  if (cd.image_uris?.normal) return cd.image_uris.normal;
+  if (cd.card_faces) {
+    // Check first face
+    if (cd.card_faces[0]?.image_uris?.normal) return cd.card_faces[0].image_uris.normal;
+    // Some formats like Meld or Aftermath might have them deeper or differently structured
+    // If the top level face doesn't have it, try to find ANY face with an image
+    for (const face of cd.card_faces) {
+      if (face.image_uris?.normal) return face.image_uris.normal;
+    }
+  }
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════
 // DECK PARSING & ANALYSIS
 // ═══════════════════════════════════════════════════════════

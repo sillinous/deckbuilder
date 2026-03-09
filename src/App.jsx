@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   sfSearch,
   sfNamed,
+  getCardImage,
   parseDecklist,
   hasDeck,
   computeCurve,
@@ -216,7 +217,7 @@ function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onS
 
   const owned = inventory?.[card.name] || 0;
   const isMissing = owned < card.qty;
-  const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
+  const img = getCardImage(card.cardData);
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
   return (
@@ -469,7 +470,7 @@ function MosaicView({ deck, onHover, synergyMap, activeCard }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, padding: "10px 0" }}>
       {deck.mainboard.map((c, i) => {
-        const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
+        const img = getCardImage(c.cardData);
         const isRelated = relatedNames.includes(c.name);
         return (
           <div key={i}
@@ -534,7 +535,7 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", position: "relative" }}>
             {groups[mv].map((c, i) => {
-              const img = c.cardData?.image_uris?.normal || c.cardData?.card_faces?.[0]?.image_uris?.normal;
+              const img = getCardImage(c.cardData);
               const isRelated = relatedNames.includes(c.name);
               return (
                 <div key={i}
