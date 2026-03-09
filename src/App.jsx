@@ -850,7 +850,7 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 240px", gap: 20, alignItems: "start" }}>
-        <div style={{ maxHeight: listHeight || (compact ? 300 : "75vh"), overflowY: listHeight === "none" ? "visible" : "auto", paddingRight: 4 }}>
+        <div style={{ maxHeight: listHeight || (compact ? 300 : "75vh"), overflowY: listHeight === "none" ? "visible" : "auto", paddingRight: 4, minWidth: 0 }}>
           {viewMode === "mosaic" ? (
             <MosaicView deck={deck} onHover={handleHover} synergyMap={synergyMap} activeCard={activeCard} />
           ) : viewMode === "stack" ? (
@@ -2158,7 +2158,7 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
       {/* Deck Viewer Modal */}
       {viewDeck && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 1100, display: "flex", flexDirection: "column" }} onClick={() => setViewDeck(null)}>
-          <div style={{ maxWidth: "clamp(860px, 95vw, 1500px)", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", height: "100vh", padding: "16px 20px" }} onClick={e => e.stopPropagation()}>
+          <div style={{ maxWidth: 1600, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", height: "100vh", padding: "16px 20px" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexShrink: 0 }}>
               <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 16, color: "#c9a84c" }}>{viewDeck.name}</h3>
               <button onClick={() => setViewDeck(null)} style={{ ...xBtn, fontSize: 14, borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
