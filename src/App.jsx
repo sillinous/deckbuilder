@@ -2257,7 +2257,7 @@ export default function MTGDeckArchitect() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", color: "#ddd", fontFamily: "'Crimson Text', Georgia, serif", position: "relative" }}>
+    <div style={{ minHeight: "100vh", color: "#ddd", fontFamily: "'Crimson Text', Georgia, serif", position: "relative", display: "flex", flexDirection: "column" }}>
       <ManaBackground colors={activeColors} />
 
       {/* Global State Pulses */}
@@ -2301,7 +2301,7 @@ export default function MTGDeckArchitect() {
       `}</style>
 
       {/* Header */}
-      <div className="glass-panel" style={{ ...GLASS_STYLE, margin: "10px 10px 20px", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 10, zIndex: 1000 }}>
+      <div className="glass-panel" style={{ ...GLASS_STYLE, margin: "10px 10px 0", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 1000, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ fontFamily: "'Cinzel', serif", fontSize: 20, fontWeight: 700, background: "linear-gradient(135deg, #c9a84c, #f0d68a, #c9a84c)", backgroundSize: "200% 100%", animation: "shimmer 8s ease infinite", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 3 }}>✦ ARCANUM</h1>
           <span style={{ color: "rgba(255,255,255,0.05)", fontSize: 16 }}>|</span>
@@ -2342,7 +2342,7 @@ export default function MTGDeckArchitect() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "0 16px" }}>
+      <div style={{ maxWidth: 920, margin: "0 auto", padding: "16px 16px", flex: 1 }}>
         {tab === "agent" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><AIAgent onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "builder" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><GuidedBuilder onSaveDeck={handleSaveDeck} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
         {tab === "arena" && <div style={{ animation: "inkDissolve 0.6s ease-out forwards" }}><Arena vault={vault} setVault={setVault} providerCfg={providerCfg} inventory={inventory} onUpdateInventory={handleUpdateInventory} onCtx={onCtx} /></div>}
