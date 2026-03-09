@@ -101,28 +101,29 @@ async function aiEnrichDeck(parsed, setStatus) {
 
 
 function ManaBackground({ colors }) {
-  const hexMap = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#222" };
+  const hexMap = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#181818" };
   const activeBlobs = colors && colors.length > 0 ? colors : ["C"];
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: -1, overflow: "hidden", background: "#050505" }}>
-      <svg style={{ width: "100%", height: "100%", opacity: 0.3, filter: "blur(100px)" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: -1, overflow: "hidden", background: "#040404" }}>
+      <svg style={{ width: "100%", height: "100%", opacity: 0.2, filter: "blur(120px)" }}>
         {activeBlobs.map((c, i) => (
           <circle
             key={i}
-            cx={`${25 + (i * 50) / activeBlobs.length}%`}
-            cy={`${35 + (i * 30) / activeBlobs.length}%`}
-            r="35%"
+            cx={`${20 + (i * 55) / activeBlobs.length}%`}
+            cy={`${30 + (i * 35) / activeBlobs.length}%`}
+            r="30%"
             fill={hexMap[c] || hexMap.C}
             style={{
-              animation: `orbital ${20 + i * 5}s linear infinite`,
+              animation: `orbital ${25 + i * 7}s linear infinite`,
               transformOrigin: "center",
-              opacity: 0.4,
+              opacity: 0.5,
             }}
           />
         ))}
       </svg>
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at center, transparent, #050505 90%)" }} />
+      {/* Subtle grain overlay */}
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 30% 20%, rgba(201,168,76,0.02), transparent 60%), radial-gradient(circle at center, transparent 30%, #040404 95%)" }} />
     </div>
   );
 }
@@ -134,20 +135,33 @@ function ManaBackground({ colors }) {
 function CurveChart({ data }) {
   const max = Math.max(...Object.values(data), 1);
   const keys = ["0","1","2","3","4","5","6","7+"];
+  const total = Object.values(data).reduce((a, b) => a + b, 0) || 1;
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 70 }}>
-      {keys.map(k => (
-        <div key={k} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-          <span style={{ fontSize: 9, color: "#666", marginBottom: 2 }}>{data[k] || ""}</span>
-          <div style={{
-            width: "100%", minWidth: 12,
-            height: `${Math.max(((data[k] || 0) / max) * 46, 0)}px`,
-            background: "linear-gradient(to top, #c9a84c55, #c9a84c)", borderRadius: "2px 2px 0 0",
-            transition: "height 0.4s",
-          }} />
-          <span style={{ fontSize: 8, color: "#444", marginTop: 2 }}>{k}</span>
-        </div>
-      ))}
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80, padding: "0 2px" }}>
+      {keys.map((k, i) => {
+        const val = data[k] || 0;
+        const pct = Math.round((val / total) * 100);
+        const barH = Math.max((val / max) * 54, 0);
+        const isHighest = val === max && val > 0;
+        return (
+          <div key={k} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 2 }}>
+            <span style={{ fontSize: 9, color: isHighest ? "#c9a84c" : "#555", fontWeight: isHighest ? 700 : 400, transition: "color 0.3s" }}>{val || ""}</span>
+            <div style={{ width: "100%", position: "relative" }}>
+              <div style={{
+                width: "100%", minWidth: 14,
+                height: `${barH}px`,
+                background: isHighest ? "linear-gradient(to top, #c9a84c66, #c9a84c)" : "linear-gradient(to top, #c9a84c33, #c9a84c88)",
+                borderRadius: "3px 3px 1px 1px",
+                transition: "height 0.5s cubic-bezier(0.19, 1, 0.22, 1)",
+                transformOrigin: "bottom",
+                animation: `barGrow 0.6s ease-out ${i * 0.05}s both`,
+                boxShadow: isHighest ? "0 -2px 8px rgba(201,168,76,0.2)" : "none",
+              }} />
+            </div>
+            <span style={{ fontSize: 8, color: "#3a3a3a", fontFamily: "'Cinzel', serif" }}>{k}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -155,15 +169,20 @@ function CurveChart({ data }) {
 function TypeBars({ data }) {
   const total = Object.values(data).reduce((a, b) => a + b, 0) || 1;
   const clr = { Creature: "#4DB87A", Planeswalker: "#c9a84c", Land: "#8B7355", Battle: "#E05A50", Instant: "#4DA3D4", Sorcery: "#E06A50", Enchantment: "#A68DA0", Artifact: "#777", Other: "#444" };
+  const icons = { Creature: "👤", Planeswalker: "🌟", Land: "🏔", Battle: "⚔", Instant: "⚡", Sorcery: "🔮", Enchantment: "✨", Artifact: "🔧", Other: "•" };
+  const sorted = Object.entries(data).filter(([,ct]) => ct > 0).sort((a, b) => b[1] - a[1]);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {Object.entries(data).sort((a, b) => b[1] - a[1]).map(([tp, ct]) => (
-        <div key={tp} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 9, color: "#666", width: 68, textAlign: "right" }}>{tp}</span>
-          <div style={{ flex: 1, height: 8, background: "#151515", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{ width: `${(ct / total) * 100}%`, height: "100%", background: clr[tp] || "#444", borderRadius: 2 }} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {sorted.map(([tp, ct], i) => (
+        <div key={tp} style={{ display: "flex", alignItems: "center", gap: 6, animation: `cardEntrance 0.3s ease ${i * 0.04}s both` }}>
+          <span style={{ fontSize: 9, color: "#555", width: 72, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+            <span style={{ fontSize: 8, opacity: 0.6 }}>{icons[tp]}</span>
+            {tp}
+          </span>
+          <div style={{ flex: 1, height: 7, background: "#0f0f0f", borderRadius: 4, overflow: "hidden", border: "1px solid #1a1a1a" }}>
+            <div style={{ width: `${(ct / total) * 100}%`, height: "100%", background: `linear-gradient(90deg, ${clr[tp] || "#444"}88, ${clr[tp] || "#444"})`, borderRadius: 4, transition: "width 0.5s cubic-bezier(0.19, 1, 0.22, 1)", boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15)` }} />
           </div>
-          <span style={{ fontSize: 9, color: "#555", width: 20, textAlign: "right" }}>{ct}</span>
+          <span style={{ fontSize: 9, color: clr[tp] || "#555", width: 22, textAlign: "right", fontWeight: 600, fontFamily: "'Cinzel', serif" }}>{ct}</span>
         </div>
       ))}
     </div>
@@ -174,25 +193,37 @@ function ManaAnalytics({ data, onAutoFix }) {
   const { pips, sources } = data;
   const clr = { W: "#F0E6B2", U: "#4DA3D4", B: "#A68DA0", R: "#E05A50", G: "#4DB87A", C: "#888", Any: "#c9a84c" };
   const keys = ["W", "U", "B", "R", "G", "C"];
+  const activeKeys = keys.filter(k => pips[k] > 0 || sources[k] > 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {keys.filter(k => pips[k] > 0 || sources[k] > 0).map(k => {
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {activeKeys.map((k, i) => {
         const req = pips[k];
         const src = sources[k] + sources.Any;
         const diff = src - req;
-        const color = diff < 0 && req > 0 ? "#E05A50" : diff >= 0 && req > 0 ? "#4DB87A" : "#666";
+        const status = diff < 0 && req > 0 ? "deficit" : diff >= 0 && req > 0 ? "good" : "neutral";
+        const statusColor = status === "deficit" ? "#E05A50" : status === "good" ? "#4DB87A" : "#555";
         return (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}>
-            <div style={{ width: 12, height: 12, borderRadius: "50%", background: clr[k], display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontWeight: "bold", fontSize: 8 }}>{k}</div>
-            <div style={{ flex: 1, color: "#999" }}>Needs: <span style={{ color: "#ccc" }}>{req}</span></div>
-            <div style={{ flex: 1, color: "#999" }}>Sources: <span style={{ color: color, fontWeight: "bold" }}>{src}</span></div>
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, padding: "3px 0", animation: `cardEntrance 0.3s ease ${i * 0.05}s both` }}>
+            <div style={{ width: 14, height: 14, borderRadius: "50%", background: clr[k], display: "flex", alignItems: "center", justifyContent: "center", color: k === "W" || k === "C" ? "#333" : "#000", fontWeight: 700, fontSize: 7, boxShadow: `0 0 6px ${clr[k]}33`, flexShrink: 0 }}>{k}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                <span style={{ color: "#666", fontSize: 9 }}>Need <strong style={{ color: "#aaa" }}>{req}</strong></span>
+                <span style={{ color: statusColor, fontSize: 9, fontWeight: 600 }}>{src} src {status === "deficit" && `(${diff})`}</span>
+              </div>
+              <div style={{ height: 3, background: "#151515", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min((src / Math.max(req, 1)) * 100, 100)}%`, height: "100%", background: statusColor, borderRadius: 3, transition: "width 0.5s ease" }} />
+              </div>
+            </div>
           </div>
         );
       })}
-      {sources.Any > 0 && <div style={{ fontSize: 9, color: "#c9a84c", marginTop: 4, fontStyle: "italic" }}>Includes {sources.Any} 'Any Color' sources</div>}
+      {sources.Any > 0 && <div style={{ fontSize: 8, color: "#c9a84c88", marginTop: 2, fontStyle: "italic" }}>+{sources.Any} any-color sources</div>}
       {onAutoFix && (
-        <button onClick={onAutoFix} style={{ ...xBtn, marginTop: 8, background: "linear-gradient(135deg, #182a18, #101810)", borderColor: "#4DB87A33", color: "#4DB87A", width: "100%", fontSize: 9 }}>
+        <button onClick={onAutoFix} style={{ ...xBtn, marginTop: 8, background: "linear-gradient(135deg, #0f1f0f, #0a140a)", borderColor: "#4DB87A22", color: "#4DB87A", width: "100%", fontSize: 9, borderRadius: 6, padding: "6px 10px", transition: "all 0.25s" }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = "#4DB87A44"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(77,184,122,0.1)"; }}
+          onMouseOut={e => { e.currentTarget.style.borderColor = "#4DB87A22"; e.currentTarget.style.boxShadow = "none"; }}
+        >
           🪄 Auto-Fix Lands
         </button>
       )}
@@ -220,17 +251,22 @@ function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onS
   const img = getCardImage(card.cardData);
   const price = card.cardData?.prices?.usd || card.cardData?.prices?.usd_foil;
 
+  const rarity = card.cardData?.rarity;
+  const rarityColor = rarity === "mythic" ? "#E05A50" : rarity === "rare" ? "#c9a84c" : rarity === "uncommon" ? "#b0b0b0" : "#555";
+  const manaCostDisplay = card.cardData?.mana_cost?.replace(/[{}]/g, "") || "";
+
   return (
     <div
       ref={tiltRef}
       className="lux-card"
       style={{
-        display: "flex", alignItems: "center", padding: "1px 6px", borderRadius: 4, cursor: "default", animation: "fadeIn 0.2s ease",
-        background: isMissing ? "rgba(224, 90, 80, 0.05)" : synergyHighlight ? "rgba(201, 168, 76, 0.15)" : "transparent",
-        boxShadow: isMissing ? "inset 2px 0 0 #E05A50" : synergyHighlight ? "0 0 8px rgba(201, 168, 76, 0.3)" : "none",
-        transition: "all 0.1s ease-out",
-        borderBottom: "1px solid #1a1a1a33",
-        willChange: "transform"
+        display: "flex", alignItems: "center", padding: "3px 8px", borderRadius: 5, cursor: "default",
+        background: isMissing ? "rgba(224, 90, 80, 0.04)" : synergyHighlight ? "rgba(201, 168, 76, 0.1)" : "transparent",
+        boxShadow: isMissing ? "inset 2px 0 0 #E05A50" : synergyHighlight ? "inset 2px 0 0 #c9a84c, 0 0 8px rgba(201, 168, 76, 0.15)" : "none",
+        transition: "all 0.15s ease-out",
+        borderBottom: "1px solid rgba(255,255,255,0.025)",
+        willChange: "transform",
+        minHeight: 26,
       }}
       onContextMenu={e => {
         if (onCtx) {
@@ -239,30 +275,32 @@ function CardRow({ card, onHover, isEditMode, onUpdateQty, synergyHighlight, onS
         }
       }}
       onMouseMove={handleMove} onMouseEnter={() => img && onHover(img, card.name)} onMouseLeave={handleLeave}>
-      <div style={{ width: 18, fontSize: 10, color: isMissing ? "#E05A50" : "#777", fontWeight: 700 }}>{card.qty}x</div>
-      <div style={{ flex: 1, fontSize: 11, color: isMissing ? "#eee" : "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8 }}>{card.name}</div>
-      <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-        {card.cardData?.mana_cost && <div style={{ fontSize: 9, color: "#555" }}>{card.cardData.mana_cost.replace(/[{}]/g, "")}</div>}
+      <div style={{ width: 22, fontSize: 10, color: isMissing ? "#E05A50" : "#666", fontWeight: 700, fontFamily: "'Cinzel', serif" }}>{card.qty}x</div>
+      {rarity && <div style={{ width: 3, height: 3, borderRadius: "50%", background: rarityColor, marginRight: 6, flexShrink: 0, boxShadow: rarity === "mythic" ? "0 0 4px #E05A5066" : rarity === "rare" ? "0 0 4px #c9a84c44" : "none" }} />}
+      <div style={{ flex: 1, fontSize: 11, color: isMissing ? "#ddd" : synergyHighlight ? "#ddc" : "#aaa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: 8, letterSpacing: 0.2 }}>{card.name}</div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        {manaCostDisplay && <div style={{ fontSize: 9, color: "#444", fontFamily: "'Cinzel', serif", letterSpacing: 0.5 }}>{manaCostDisplay}</div>}
+        {price && <span style={{ fontSize: 8, color: "#4DB87A66", fontFamily: "'Cinzel', serif" }}>${parseFloat(price).toFixed(0)}</span>}
         {onSuggest && (
           <button
             onClick={(e) => { e.stopPropagation(); onSuggest(card.name); }}
-            style={{ ...xBtn, padding: "0 4px", fontSize: 10, border: "none", background: "transparent", color: "#c9a84c88" }}
+            style={{ ...xBtn, padding: "1px 5px", fontSize: 10, border: "none", background: "transparent", color: "#c9a84c55", transition: "color 0.2s" }}
             onMouseOver={e => e.currentTarget.style.color = "#c9a84c"}
-            onMouseOut={e => e.currentTarget.style.color = "#c9a84c88"}
+            onMouseOut={e => e.currentTarget.style.color = "#c9a84c55"}
           >🔮</button>
         )}
         {isEditMode && (
-          <div style={{ display: "flex", gap: 3, marginLeft: 6 }}>
-            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, -1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>-</button>
-            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, 1); }} style={{ ...xBtn, padding: "0 4px", fontSize: 12 }}>+</button>
+          <div style={{ display: "flex", gap: 2, marginLeft: 4 }}>
+            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, -1); }} style={{ ...xBtn, padding: "1px 6px", fontSize: 11, borderRadius: 4 }}>−</button>
+            <button onClick={(e) => { e.stopPropagation(); onUpdateQty(card.name, 1); }} style={{ ...xBtn, padding: "1px 6px", fontSize: 11, borderRadius: 4 }}>+</button>
           </div>
         )}
         {onUpdateInventory && (
           <button
             onClick={(e) => { e.stopPropagation(); onUpdateInventory(card.name, isMissing ? card.qty - owned : -1); }}
-            style={{ ...xBtn, marginLeft: 4, padding: "0 4px", fontSize: 10, background: isMissing ? "#E05A5011" : "transparent", color: isMissing ? "#E05A50" : "#4DB87A88" }}
+            style={{ ...xBtn, marginLeft: 2, padding: "1px 5px", fontSize: 9, background: isMissing ? "#E05A5008" : "transparent", color: isMissing ? "#E05A50" : "#4DB87A66", border: "none", transition: "color 0.2s" }}
           >
-            {isMissing ? "🎒 +" : "✓"}
+            {isMissing ? "🎒+" : "✓"}
           </button>
         )}
       </div>
@@ -393,31 +431,44 @@ function SideboardGuide({ guide, onClear }) {
 function GoldfishStats({ data, onClear }) {
   const maxDpt = Math.max(...data.dpt.map(Number), 1);
   return (
-    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 16, position: "relative" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif" }}>ADVANCED GOLDFISH (500 iterations)</div>
-        <button onClick={onClear} style={{ ...xBtn, fontSize: 10 }}>✕</button>
+    <div className="glass-panel" style={{ ...GLASS_STYLE, marginTop: 20, padding: 18, position: "relative", animation: "slideUp 0.3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: 2, fontFamily: "'Cinzel', serif", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12 }}>📊</span> GOLDFISH STATS
+          <span style={{ fontSize: 8, color: "#444", fontStyle: "italic", fontFamily: "'Crimson Text', serif", letterSpacing: 0 }}>500 iterations</span>
+        </div>
+        <button onClick={onClear} style={{ ...xBtn, fontSize: 10, borderRadius: 6 }}>✕</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
         {[
-          ["Avg Kill Turn", data.avgKillTurn, "#E05A50"],
-          ["Reliability", `${data.reliability}%`, "#4DB87A"],
-          ["Lands @ T4", data.avgLandsTurn4, "#4DA3D4"],
-        ].map(([l, v, c]) => (
-          <div key={l} style={{ background: "#111", padding: "8px 12px", borderRadius: 6, border: "1px solid #1a1a1a", textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "#555", marginBottom: 4 }}>{l}</div>
-            <div style={{ fontSize: 16, color: c, fontWeight: "bold" }}>{v}</div>
+          ["Avg Kill Turn", data.avgKillTurn, "#E05A50", "⚡"],
+          ["Reliability", `${data.reliability}%`, "#4DB87A", "🎯"],
+          ["Lands @ T4", data.avgLandsTurn4, "#4DA3D4", "🏔"],
+        ].map(([l, v, c, icon], i) => (
+          <div key={l} style={{ background: "rgba(0,0,0,0.3)", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.04)", textAlign: "center", animation: `cardEntrance 0.3s ease ${i * 0.08}s both` }}>
+            <div style={{ fontSize: 8, color: "#555", marginBottom: 4, letterSpacing: 1 }}>{icon} {l}</div>
+            <div style={{ fontSize: 20, color: c, fontWeight: 700, fontFamily: "'Cinzel', serif" }}>{v}</div>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 8 }}>DAMAGE PER TURN (EXPECTED)</div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60 }}>
-        {data.dpt.map((d, i) => (
-          <div key={i} style={{ flex: 1, position: "relative" }}>
-            <div style={{ height: `${(d / maxDpt) * 100}%`, background: i + 1 === Math.round(data.avgKillTurn) ? "#E05A50" : "#c9a84c44", borderRadius: "3px 3px 0 0", transition: "height 0.4s ease" }} />
-            <div style={{ fontSize: 7, color: "#444", textAlign: "center", marginTop: 4 }}>T{i + 1}</div>
-          </div>
-        ))}
+      <div style={{ fontSize: 8, color: "#555", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>DAMAGE PER TURN</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 65, padding: "0 2px" }}>
+        {data.dpt.map((d, i) => {
+          const isKillTurn = i + 1 === Math.round(Number(data.avgKillTurn));
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 7, color: isKillTurn ? "#E05A50" : "#444" }}>{Number(d) > 0 ? d : ""}</span>
+              <div style={{
+                width: "100%", height: `${(d / maxDpt) * 100}%`, minHeight: d > 0 ? 3 : 0,
+                background: isKillTurn ? "linear-gradient(to top, #E05A5066, #E05A50)" : "linear-gradient(to top, #c9a84c33, #c9a84c77)",
+                borderRadius: "3px 3px 1px 1px", transition: "height 0.5s cubic-bezier(0.19,1,0.22,1)",
+                boxShadow: isKillTurn ? "0 -2px 8px rgba(224,90,80,0.2)" : "none",
+                animation: `barGrow 0.5s ease-out ${i * 0.04}s both`, transformOrigin: "bottom",
+              }} />
+              <span style={{ fontSize: 7, color: isKillTurn ? "#E05A50" : "#333", fontWeight: isKillTurn ? 700 : 400 }}>T{i + 1}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -527,13 +578,14 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
   const cols = ["0", "1", "2", "3", "4", "5", "6", "7+"];
 
   return (
-    <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "10px 0", minHeight: 400 }}>
+    <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 0", minHeight: 400 }}>
       {cols.map(mv => (groups[mv] || []).length > 0 && (
         <div key={mv} style={{ minWidth: 130, flex: 1 }}>
-          <div style={{ fontSize: 10, color: "#c9a84c", textAlign: "center", marginBottom: 8, borderBottom: "1px solid #c9a84c33", paddingBottom: 4, fontFamily: "'Cinzel', serif" }}>
-            {mv} MANA
+          <div style={{ fontSize: 9, color: "#c9a84c88", textAlign: "center", marginBottom: 8, borderBottom: "1px solid rgba(201,168,76,0.12)", paddingBottom: 5, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
+            {mv} <span style={{ color: "#444", fontSize: 8 }}>CMC</span>
+            <span style={{ display: "block", fontSize: 8, color: "#333", marginTop: 1 }}>{groups[mv].reduce((a,c) => a + c.qty, 0)} cards</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", position: "relative" }}>
+          <div style={{ display: "flex", flexDirection: "column", position: "relative", gap: 2 }}>
             {groups[mv].map((c, i) => {
               const img = getCardImage(c.cardData);
               const isRelated = relatedNames.includes(c.name);
@@ -546,22 +598,21 @@ function StackView({ deck, onHover, synergyMap, activeCard }) {
                   style={{
                     position: "relative",
                     height: 36,
-                    borderRadius: 4,
+                    borderRadius: 5,
                     overflow: "hidden",
-                    marginBottom: 2,
-                    border: isRelated ? "2px solid #c9a84c" : "1px solid #1a1a1a",
-                    boxShadow: isRelated ? "0 0 10px #c9a84c44" : "none",
-                    background: "#0a0a0a",
+                    border: isRelated ? "1px solid #c9a84c66" : "1px solid rgba(255,255,255,0.04)",
+                    boxShadow: isRelated ? "0 0 10px #c9a84c22" : "none",
+                    background: "#080808",
                     cursor: "pointer",
-                    transition: "all 0.2s"
+                    transition: "all 0.2s cubic-bezier(0.19,1,0.22,1)"
                   }}
-                  onMouseOver={e => { e.currentTarget.style.transform = "translateX(5px)"; e.currentTarget.style.zIndex = 10; }}
-                  onMouseOut={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.zIndex = 1; }}
+                  onMouseOver={e => { e.currentTarget.style.transform = "translateX(4px)"; e.currentTarget.style.zIndex = 10; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+                  onMouseOut={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.zIndex = 1; e.currentTarget.style.borderColor = isRelated ? "#c9a84c66" : "rgba(255,255,255,0.04)"; }}
                 >
-                  {img && <img src={img} alt={c.name} style={{ width: "100%", height: 300, objectFit: "cover", objectPosition: "top", opacity: 0.6 }} />}
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(90deg, #000 20%, transparent 80%)", display: "flex", alignItems: "center", padding: "0 8px" }}>
-                    <div style={{ fontSize: 9, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      <span style={{ color: "#c9a84c", fontWeight: "bold", marginRight: 4 }}>{c.qty}x</span> {c.name}
+                  {img && <img src={img} alt={c.name} style={{ width: "100%", height: 300, objectFit: "cover", objectPosition: "top", opacity: 0.5 }} />}
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(90deg, rgba(0,0,0,0.85) 25%, transparent 85%)", display: "flex", alignItems: "center", padding: "0 8px" }}>
+                    <div style={{ fontSize: 9, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <span style={{ color: "#c9a84c", fontWeight: 700, marginRight: 4, fontFamily: "'Cinzel', serif" }}>{c.qty}x</span>{c.name}
                     </div>
                   </div>
                 </div>
@@ -745,31 +796,51 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
 
   return (
     <div className={listHeight === "none" ? "" : "glass-panel"} style={{ ...(listHeight === "none" ? {} : GLASS_STYLE), padding: compact ? 10 : 14, animation: "fadeIn 0.4s ease", height: listHeight === "none" ? "auto" : undefined, overflow: listHeight === "none" ? "visible" : undefined }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {[["Cards", totalM], ["Lands", lands], ["Avg CMC", avg], ["Price", `$${totalPrice.toFixed(2)}`]].map(([l, v]) => (
-            <div key={l} style={{ padding: "6px 14px", background: "rgba(0,0,0,0.4)", borderRadius: 8, border: `1px solid ${l === "Cards" && v > 4 ? "#E05A50" : l === "Lands" && totalM >= 4 && lands < 2 ? "#E05A5066" : l === "Price" ? "#4DB87A66" : "rgba(255,255,255,0.05)"}`, boxShadow: "0 4px 15px rgba(0,0,0,0.2)", transition: "all 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
-              <div style={{ fontSize: 9, color: "#666", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 2, fontFamily: "'Cinzel', serif" }}>{l}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 14, color: l === "Cards" && v > 4 ? "#E05A50" : l === "Price" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{v}</span>
-                {l === "Cards" && <span style={{ fontSize: 9, color: "#666", marginLeft: 4 }}>/ 4</span>}                {l === "Price" && costToComplete > 0 && (
-                  <span style={{ fontSize: 9, color: "#E05A50", background: "#E05A5015", padding: "1px 6px", borderRadius: 4, border: "1px solid #E05A5033", fontWeight: "bold" }}>-${costToComplete.toFixed(0)} NEEDED</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {[
+            { l: "Cards", v: totalM, warn: totalM > 4, color: "#c9a84c", sub: `/ ${totalM >= 90 ? "100" : "60"}` },
+            { l: "Lands", v: lands, warn: totalM >= 4 && lands < 2, color: "#8B7355" },
+            { l: "Avg CMC", v: avg, color: "#4DA3D4" },
+            { l: "Price", v: `$${totalPrice.toFixed(0)}`, color: "#4DB87A" },
+          ].map(({ l, v, warn, color, sub }) => (
+            <div key={l} style={{
+              padding: "5px 12px", background: "rgba(0,0,0,0.35)", borderRadius: 8,
+              border: `1px solid ${warn ? "#E05A5055" : "rgba(255,255,255,0.04)"}`,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)", transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
+            }}
+              onMouseOver={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.borderColor = warn ? "#E05A5077" : "rgba(255,255,255,0.08)"; }}
+              onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = warn ? "#E05A5055" : "rgba(255,255,255,0.04)"; }}
+            >
+              <div style={{ fontSize: 8, color: "#555", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 2, fontFamily: "'Cinzel', serif" }}>{l}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                <span style={{ fontSize: 14, color: warn ? "#E05A50" : color, fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{v}</span>
+                {sub && <span style={{ fontSize: 8, color: "#444" }}>{sub}</span>}
+                {l === "Price" && costToComplete > 0 && (
+                  <span style={{ fontSize: 8, color: "#E05A50", background: "#E05A5010", padding: "1px 5px", borderRadius: 4, fontWeight: 600, fontFamily: "'Cinzel', serif" }}>−${costToComplete.toFixed(0)}</span>
                 )}
               </div>
             </div>
           ))}
           {totalM >= 4 && lands === 0 && (
-            <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
-          )}
-          {totalM >= 4 && lands > 0 && lands < 1 && (
-            <span style={{ fontSize: 10, color: "#E05A50", fontStyle: "italic" }}>⚠ Low lands</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", background: "#E05A5010", borderRadius: 6, border: "1px solid #E05A5033" }}>
+              <span style={{ fontSize: 10, color: "#E05A50", fontWeight: 700 }}>⚠ NO LANDS</span>
+            </div>
           )}
         </div>
         {!compact && (
-          <div style={{ display: "flex", background: "#0d0d0d", borderRadius: 5, border: "1px solid #1a1a1a", overflow: "hidden" }}>
-            <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", border: "none", background: viewMode === "list" ? "#c9a84c22" : "transparent", color: viewMode === "list" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>LIST</button>
-            <button onClick={() => setViewMode("mosaic")} style={{ padding: "4px 8px", border: "none", background: viewMode === "mosaic" ? "#c9a84c22" : "transparent", color: viewMode === "mosaic" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>MOSAIC</button>
-            <button onClick={() => setViewMode("stack")} style={{ padding: "4px 8px", border: "none", background: viewMode === "stack" ? "#c9a84c22" : "transparent", color: viewMode === "stack" ? "#c9a84c" : "#444", fontSize: 9, cursor: "pointer", fontFamily: "'Cinzel', serif" }}>STACK</button>
+          <div style={{ display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: 7, padding: 2, border: "1px solid rgba(255,255,255,0.04)" }}>
+            {[["list", "≡"], ["mosaic", "⊞"], ["stack", "☰"]].map(([mode, icon]) => (
+              <button key={mode} onClick={() => setViewMode(mode)} style={{
+                padding: "5px 10px", border: "none", borderRadius: 5,
+                background: viewMode === mode ? "rgba(201,168,76,0.12)" : "transparent",
+                color: viewMode === mode ? "#c9a84c" : "#444", fontSize: 11, cursor: "pointer",
+                fontFamily: "'Cinzel', serif", transition: "all 0.2s",
+              }}
+                onMouseOver={e => { if (viewMode !== mode) e.currentTarget.style.color = "#666"; }}
+                onMouseOut={e => { if (viewMode !== mode) e.currentTarget.style.color = "#444"; }}
+              >{icon}</button>
+            ))}
           </div>
         )}
       </div>
@@ -807,17 +878,17 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
           )}
         </div>
 
-        {!compact && <div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MANA CURVE</div>
+        {!compact && <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ padding: "10px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.03)" }}>
+            <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>MANA CURVE</div>
             <CurveChart data={curve} />
           </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>TYPES</div>
+          <div style={{ padding: "10px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.03)" }}>
+            <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>CARD TYPES</div>
             <TypeBars data={types} />
           </div>
-          <div>
-            <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MANA BASE</div>
+          <div style={{ padding: "10px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.03)" }}>
+            <div style={{ fontSize: 8, color: "#c9a84c77", letterSpacing: 2, marginBottom: 8, fontFamily: "'Cinzel', serif" }}>MANA BASE</div>
             <ManaAnalytics data={manaInfo} onAutoFix={handleAutoFixLands} />
           </div>
         </div>}
@@ -840,14 +911,17 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 6, marginTop: 12, borderTop: "1px solid #1a1a1a", paddingTop: 12, position: "relative" }}>
+      <div style={{ display: "flex", gap: 5, marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: 12, position: "relative", flexWrap: "wrap" }}>
         {onSave && (
-          <button onClick={() => onSave(deck)} style={{ ...xBtn, background: "linear-gradient(135deg, #182a18, #101810)", borderColor: "#4DB87A33", color: "#4DB87A" }}>
-            💾 Save to Collection
+          <button onClick={() => onSave(deck)} style={{ ...xBtn, background: "linear-gradient(135deg, #0f1f0f, #0a140a)", borderColor: "#4DB87A22", color: "#4DB87A", borderRadius: 6, transition: "all 0.25s" }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = "#4DB87A44"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(77,184,122,0.1)"; }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = "#4DB87A22"; e.currentTarget.style.boxShadow = "none"; }}
+          >
+            💾 Save
           </button>
         )}
-        <button onClick={() => setIsEditMode(!isEditMode)} style={{ ...xBtn, background: isEditMode ? "#E05A5011" : "#0f0f0f", borderColor: isEditMode ? "#E05A5055" : "#1f1f1f", color: isEditMode ? "#E05A50" : "#777" }}>
-          ✏️ {isEditMode ? "Done Editing" : "Visual Edit"}
+        <button onClick={() => setIsEditMode(!isEditMode)} style={{ ...xBtn, background: isEditMode ? "#E05A5008" : "rgba(0,0,0,0.3)", borderColor: isEditMode ? "#E05A5044" : "rgba(255,255,255,0.05)", color: isEditMode ? "#E05A50" : "#666", borderRadius: 6, transition: "all 0.25s" }}>
+          ✏️ {isEditMode ? "Done" : "Edit"}
         </button>
 
         <div style={{ position: "relative" }}>
@@ -956,32 +1030,34 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
       {testHand && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(5px)", zIndex: 1000,
+          background: "rgba(0,0,0,0.9)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", zIndex: 1000,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          animation: "fadeIn 0.2s ease"
+          animation: "fadeIn 0.25s ease"
         }}>
-          <div style={{ marginBottom: 30, textAlign: "center" }}>
-            <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c9a84c", fontSize: 24, letterSpacing: 2 }}>TEST HAND</h2>
-            {mullCount > 0 && <div style={{ color: "#E05A50", fontSize: 13, marginTop: 4 }}>Mulligan to {7 - mullCount}</div>}
+          <div style={{ marginBottom: 36, textAlign: "center" }}>
+            <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c9a84c", fontSize: 20, letterSpacing: 3, marginBottom: 4 }}>🃏 TEST HAND</h2>
+            {mullCount > 0 && <div style={{ color: "#E05A50", fontSize: 12, marginTop: 6, fontFamily: "'Crimson Text', serif" }}>Mulligan to {7 - mullCount} cards</div>}
           </div>
 
-          <div style={{ display: "flex", gap: -40, flexWrap: "wrap", justifyContent: "center", maxWidth: "90%", perspective: 1000 }}>
+          <div style={{ display: "flex", gap: -40, flexWrap: "wrap", justifyContent: "center", maxWidth: "90%", perspective: 1200 }}>
             {testHand.map((card, i) => {
               const img = card.cardData?.image_uris?.normal || card.cardData?.card_faces?.[0]?.image_uris?.normal;
+              const fan = (i - testHand.length / 2) * 3;
               return (
                 <div key={card._uid || i} style={{
-                  margin: "0 -20px",
-                  transition: "transform 0.2s",
+                  margin: "0 -18px",
+                  transition: "transform 0.3s cubic-bezier(0.19,1,0.22,1)",
                   cursor: "pointer",
-                  animation: `fadeIn 0.4s ease ${i * 0.1}s both`
+                  animation: `slideUp 0.5s ease ${i * 0.08}s both`,
+                  transform: `rotateZ(${fan}deg)`,
                 }}
-                  onMouseOver={e => e.currentTarget.style.transform = "translateY(-20px) scale(1.05) rotateZ(0deg)"}
-                  onMouseOut={e => e.currentTarget.style.transform = `translateY(0) scale(1) rotateZ(${(i - testHand.length / 2) * 3}deg)`}
+                  onMouseOver={e => e.currentTarget.style.transform = "translateY(-24px) scale(1.08) rotateZ(0deg)"}
+                  onMouseOut={e => e.currentTarget.style.transform = `translateY(0) scale(1) rotateZ(${fan}deg)`}
                 >
                   {img ? (
-                    <img src={img} alt={card.name} style={{ width: 220, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }} />
+                    <img src={img} alt={card.name} style={{ width: 200, borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.06)" }} />
                   ) : (
-                    <div style={{ width: 220, height: 306, background: "#111", border: "1px solid #333", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, textAlign: "center" }}>
+                    <div style={{ width: 200, height: 280, background: "#111", border: "1px solid #2a2a2a", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, textAlign: "center", fontSize: 11, color: "#666" }}>
                       {card.name}
                     </div>
                   )}
@@ -990,16 +1066,19 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
             })}
           </div>
 
-          <div style={{ display: "flex", gap: 15, marginTop: 50 }}>
+          <div style={{ display: "flex", gap: 12, marginTop: 48 }}>
             <button onClick={() => {
               const newMull = mullCount + 1;
-              if (newMull >= 7) return; // Can't mulligan to 0
+              if (newMull >= 7) return;
               const arr = generateDeckArray(deck.mainboard);
               const shuffled = shuffleArray(arr);
               setTestHand(drawHand(shuffled, 7 - newMull));
               setTestDeck(shuffled.slice(7 - newMull));
               setMullCount(newMull);
-            }} style={{ ...xBtn, background: "#1a1a1a", padding: "10px 24px", fontSize: 13 }} disabled={mullCount >= 6}>
+            }} style={{ ...xBtn, background: "rgba(255,255,255,0.04)", padding: "10px 24px", fontSize: 12, borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", transition: "all 0.25s" }} disabled={mullCount >= 6}
+              onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+              onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+            >
               ♻️ Mulligan
             </button>
             <button onClick={() => {
@@ -1008,10 +1087,16 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
               setTestHand(drawHand(shuffled, 7));
               setTestDeck(shuffled.slice(7));
               setMullCount(0);
-            }} style={{ ...xBtn, background: "#1a1a1a", padding: "10px 24px", fontSize: 13 }}>
+            }} style={{ ...xBtn, background: "rgba(201,168,76,0.08)", padding: "10px 24px", fontSize: 12, borderRadius: 10, border: "1px solid #c9a84c22", color: "#c9a84c", transition: "all 0.25s" }}
+              onMouseOver={e => { e.currentTarget.style.background = "rgba(201,168,76,0.15)"; e.currentTarget.style.borderColor = "#c9a84c44"; }}
+              onMouseOut={e => { e.currentTarget.style.background = "rgba(201,168,76,0.08)"; e.currentTarget.style.borderColor = "#c9a84c22"; }}
+            >
               🃏 New Hand
             </button>
-            <button onClick={() => setTestHand(null)} style={{ ...xBtn, background: "#8a2f2f33", borderColor: "#8a2f2f", color: "#E05A50", padding: "10px 24px", fontSize: 13 }}>
+            <button onClick={() => setTestHand(null)} style={{ ...xBtn, background: "rgba(224,90,80,0.08)", borderColor: "#E05A5033", color: "#E05A50", padding: "10px 24px", fontSize: 12, borderRadius: 10, transition: "all 0.25s" }}
+              onMouseOver={e => { e.currentTarget.style.background = "rgba(224,90,80,0.15)"; e.currentTarget.style.borderColor = "#E05A5055"; }}
+              onMouseOut={e => { e.currentTarget.style.background = "rgba(224,90,80,0.08)"; e.currentTarget.style.borderColor = "#E05A5033"; }}
+            >
               ✕ Close
             </button>
           </div>
@@ -1032,11 +1117,12 @@ function DeckDisplay({ deck: initialDeck, onHover, compact, listHeight, onSave, 
 function AgentMessage({ msg, onHover, onSaveDeck, onCtx }) {
   if (msg.role === "user") {
     return (
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14, animation: "fadeIn 0.25s ease" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, animation: "slideUp 0.3s ease" }}>
         <div style={{
-          maxWidth: "78%", padding: "10px 14px", borderRadius: "14px 14px 4px 14px",
-          background: "#181210", border: "1px solid #2a2218",
-          color: "#d0c8a8", fontSize: 13, fontFamily: "'Crimson Text', serif", lineHeight: 1.6, whiteSpace: "pre-wrap",
+          maxWidth: "75%", padding: "10px 16px", borderRadius: "14px 14px 4px 14px",
+          background: "linear-gradient(135deg, #18140e, #14100a)", border: "1px solid #2a221688",
+          color: "#d4ccb0", fontSize: 13, fontFamily: "'Crimson Text', serif", lineHeight: 1.65, whiteSpace: "pre-wrap",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
         }}>
           {msg.content}
         </div>
@@ -1045,38 +1131,41 @@ function AgentMessage({ msg, onHover, onSaveDeck, onCtx }) {
   }
 
   return (
-    <div style={{ display: "flex", gap: 10, marginBottom: 18, animation: "fadeIn 0.35s ease" }}>
+    <div style={{ display: "flex", gap: 12, marginBottom: 20, animation: "slideUp 0.35s ease" }}>
       <div style={{
-        width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+        width: 28, height: 28, borderRadius: 9, flexShrink: 0,
         background: "linear-gradient(135deg, #c9a84c, #8a6d2f)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 11, color: "#0a0a0a", fontWeight: 700, fontFamily: "'Cinzel', serif", marginTop: 3,
-      }}>A</div>
+        fontSize: 12, color: "#0a0a0a", fontWeight: 700, fontFamily: "'Cinzel', serif", marginTop: 2,
+        boxShadow: "0 2px 8px rgba(201,168,76,0.15)",
+      }}>✦</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {msg.searches && msg.searches.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
             {msg.searches.map((s, i) => (
-              <span key={i} style={{ fontSize: 10, color: "#666", padding: "2px 8px", background: "#0d0d0d", borderRadius: 10, border: "1px solid #1a1a1a" }}>🔍 {s}</span>
+              <span key={i} style={{ fontSize: 9, color: "#666", padding: "3px 8px", background: "rgba(0,0,0,0.3)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.04)" }}>🔍 {s}</span>
             ))}
           </div>
         )}
         {msg.loading && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 10, border: "1px solid rgba(255,168,76,0.05)", animation: "fadeIn 0.5s ease" }}>
-            <div style={{ position: "relative", width: 20, height: 20 }}>
-              <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", animation: "orbital 4s linear infinite" }}>
-                <path d="M50 5 L50 20 M85 35 L72 42 M85 65 L72 58 M50 95 L50 80 M15 65 L28 58 M15 35 L28 42" stroke="#c9a84c" strokeWidth="6" strokeLinecap="round" />
-              </svg>
-              <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle, #c9a84c33 0%, transparent 70%)", animation: "glow 2s ease-in-out infinite" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(201,168,76,0.02)", borderRadius: 12, border: "1px solid rgba(201,168,76,0.06)", animation: "fadeIn 0.5s ease" }}>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 6, height: 6, borderRadius: "50%", background: "#c9a84c",
+                  animation: `typingDot 1.4s ease-in-out ${i * 0.16}s infinite`,
+                }} />
+              ))}
             </div>
-            <span style={{ fontSize: 11, color: "#888", fontStyle: "italic", letterSpacing: 0.5, fontFamily: "'Cinzel', serif" }}>{msg.status || "Channeling the Arcanum..."}</span>
+            <span style={{ fontSize: 11, color: "#777", fontStyle: "italic", letterSpacing: 0.3, fontFamily: "'Crimson Text', serif" }}>{msg.status || "Channeling the Arcanum..."}</span>
           </div>
         )}
         {msg.content && (
-          <div style={{ color: "#aaa", fontSize: 13, fontFamily: "'Crimson Text', serif", lineHeight: 1.75, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ color: "#b0b0b0", fontSize: 13, fontFamily: "'Crimson Text', serif", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {msg.content}
           </div>
         )}
-        {msg.deck && <div style={{ marginTop: 12 }}><DeckDisplay deck={msg.deck} onHover={onHover} onSave={onSaveDeck} onGenerateGuide={msg.onGenerateGuide} onCtx={onCtx} /></div>}
+        {msg.deck && <div style={{ marginTop: 14 }}><DeckDisplay deck={msg.deck} onHover={onHover} onSave={onSaveDeck} onGenerateGuide={msg.onGenerateGuide} onCtx={onCtx} /></div>}
       </div>
     </div>
   );
@@ -1273,27 +1362,33 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx 
       )}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 0" }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: "center", padding: "36px 16px", animation: "fadeIn 0.5s ease" }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", margin: "0 auto 16px", background: "linear-gradient(135deg, #c9a84c22, #c9a84c08)", border: "1px solid #c9a84c22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>✦</div>
-            <h2 style={{ fontFamily: "'Cinzel', serif", fontSize: 18, color: "#c9a84c", marginBottom: 6, letterSpacing: 2 }}>ARCANUM AGENT</h2>
-            <p style={{ fontFamily: "'Crimson Text', serif", color: "#555", fontSize: 13, maxWidth: 480, margin: "0 auto 28px", lineHeight: 1.6 }}>
-              Build decks, find combos, optimize every card slot. Save decks to your Vault, then pit them against each other in the Arena.
+          <div style={{ textAlign: "center", padding: "48px 16px 36px", animation: "fadeIn 0.6s ease" }}>
+            <div style={{ width: 72, height: 72, borderRadius: 18, margin: "0 auto 20px", background: "linear-gradient(135deg, #c9a84c15, #c9a84c05)", border: "1px solid #c9a84c18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, animation: "breathe 4s ease-in-out infinite" }}>✦</div>
+            <h2 style={{ fontFamily: "'Cinzel', serif", fontSize: 22, color: "#c9a84c", marginBottom: 8, letterSpacing: 3, background: "linear-gradient(135deg, #c9a84c, #f0d68a)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ARCANUM AGENT</h2>
+            <p style={{ fontFamily: "'Crimson Text', serif", color: "#555", fontSize: 14, maxWidth: 500, margin: "0 auto 32px", lineHeight: 1.7 }}>
+              Build competitive decks, discover hidden combos, optimize every slot. Your AI-powered deck architect with knowledge of 25,000+ cards.
             </p>
-            <div style={{ marginBottom: 28 }}>
+            <div style={{ marginBottom: 32 }}>
               <button
                 onClick={() => setImportModalOpen(true)}
-                style={{ ...xBtn, background: "linear-gradient(135deg, #182a2a, #101818)", borderColor: "#4DA3D433", color: "#4DA3D4", padding: "10px 20px", fontSize: 12, borderRadius: 8 }}
+                style={{ ...xBtn, background: "linear-gradient(135deg, #0f1a1f, #0a1214)", borderColor: "#4DA3D422", color: "#4DA3D4", padding: "12px 24px", fontSize: 12, borderRadius: 10, transition: "all 0.3s" }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = "#4DA3D444"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(77,163,212,0.1)"; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = "#4DA3D422"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
               >
                 📥 Import & Analyze Deck
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxWidth: 560, margin: "0 auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxWidth: 580, margin: "0 auto" }}>
               {QUICK_PROMPTS.map((qp, i) => (
-                <button key={i} onClick={() => send(qp.prompt)} style={{ padding: "10px 12px", background: "#0d0d0d", border: "1px solid #181818", borderRadius: 8, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c33"; e.currentTarget.style.background = "#121008"; }}
-                  onMouseOut={e => { e.currentTarget.style.borderColor = "#181818"; e.currentTarget.style.background = "#0d0d0d"; }}>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 10, color: "#c9a84c", letterSpacing: 1 }}>{qp.label}</div>
-                  <div style={{ fontSize: 10, color: "#444", marginTop: 3, fontFamily: "'Crimson Text', serif", lineHeight: 1.4 }}>{qp.prompt.substring(0, 70)}...</div>
+                <button key={i} onClick={() => send(qp.prompt)} style={{
+                  padding: "12px 14px", background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.04)",
+                  borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
+                  animation: `cardEntrance 0.4s ease ${i * 0.05}s both`,
+                }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c22"; e.currentTarget.style.background = "rgba(201,168,76,0.04)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"; e.currentTarget.style.background = "rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 10, color: "#c9a84c", letterSpacing: 1, marginBottom: 4 }}>{qp.label}</div>
+                  <div style={{ fontSize: 10, color: "#444", fontFamily: "'Crimson Text', serif", lineHeight: 1.5 }}>{qp.prompt.substring(0, 80)}...</div>
                 </button>
               ))}
             </div>
@@ -1302,14 +1397,28 @@ function AIAgent({ onSaveDeck, providerCfg, inventory, onUpdateInventory, onCtx 
         {messages.map((msg, i) => <AgentMessage key={i} msg={msg} onHover={setHoveredCard} onSaveDeck={onSaveDeck} onCtx={onCtx} />)}
         <div ref={chatEndRef} />
       </div>
-      {hoveredCard && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none", animation: "fadeIn 0.12s ease" }}><img src={hoveredCard} alt="" style={{ width: 260, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.9)" }} /></div>}
-      <div style={{ borderTop: "1px solid #151515", padding: "10px 0 2px" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", background: "#0d0d0d", borderRadius: 12, border: "1px solid #1a1a1a", padding: "8px 10px" }}>
+      {hoveredCard && <div style={{ position: "fixed", right: 20, top: 90, zIndex: 200, pointerEvents: "none", animation: "slideUp 0.15s ease" }}><img src={hoveredCard} alt="" style={{ width: 260, borderRadius: 14, boxShadow: "0 16px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)" }} /></div>}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.03)", padding: "12px 0 4px" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.05)", padding: "10px 12px", transition: "border-color 0.3s, box-shadow 0.3s" }}
+          onFocus={e => { e.currentTarget.style.borderColor = "#c9a84c22"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,168,76,0.04)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"; e.currentTarget.style.boxShadow = "none"; }}
+        >
           <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }} disabled={busy}
             placeholder={busy ? "Agent is working..." : "Build me the best deck in Modern... / Find a combo that kills on turn 3..."}
-            rows={1} style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#bbb", fontSize: 13, fontFamily: "'Crimson Text', serif", resize: "none", lineHeight: 1.5, minHeight: 22, maxHeight: 100 }}
-            onInput={e => { e.target.style.height = "22px"; e.target.style.height = e.target.scrollHeight + "px"; }} />
-          <button onClick={() => send(input)} disabled={!input.trim() || busy} style={{ width: 34, height: 34, borderRadius: "50%", background: input.trim() && !busy ? "linear-gradient(135deg, #c9a84c, #8a6d2f)" : "#1a1a1a", border: "none", cursor: input.trim() && !busy ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>↑</button>
+            rows={1} style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#ccc", fontSize: 13, fontFamily: "'Crimson Text', serif", resize: "none", lineHeight: 1.6, minHeight: 24, maxHeight: 120 }}
+            onInput={e => { e.target.style.height = "24px"; e.target.style.height = e.target.scrollHeight + "px"; }} />
+          <button onClick={() => send(input)} disabled={!input.trim() || busy} style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: input.trim() && !busy ? "linear-gradient(135deg, #c9a84c, #a07c2e)" : "rgba(255,255,255,0.03)",
+            border: "none", cursor: input.trim() && !busy ? "pointer" : "default",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, color: input.trim() && !busy ? "#0a0a0a" : "#333", fontWeight: 700,
+            transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
+            boxShadow: input.trim() && !busy ? "0 2px 10px rgba(201,168,76,0.2)" : "none",
+          }}
+            onMouseOver={e => { if (input.trim() && !busy) e.currentTarget.style.transform = "scale(1.05)"; }}
+            onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
+          >↑</button>
         </div>
       </div>
 
@@ -1478,7 +1587,16 @@ Use ===DECKLIST_START=== and ===DECKLIST_END=== markers. Group cards by type (Cr
         <div><div style={{fontSize:9,color:"#444",marginBottom:3}}>Strategy</div><textarea value={cfg.strat} onChange={e=>setCfg(p=>({...p,strat:e.target.value}))} placeholder="e.g. graveyard synergies..." style={ta}/></div>
         <div><div style={{fontSize:9,color:"#444",marginBottom:3}}>Beat these decks</div><textarea value={cfg.meta} onChange={e=>setCfg(p=>({...p,meta:e.target.value}))} placeholder="e.g. Burn, Tron..." style={ta}/></div>
       </div>
-      <button onClick={build} style={{ width:"100%",padding:"12px",background:"linear-gradient(135deg,#c9a84c,#8a6d2f)",border:"none",borderRadius:7,cursor:"pointer",fontFamily:"'Cinzel', serif",fontSize:13,fontWeight:700,color:"#0a0a0a",letterSpacing:2 }}>
+      <button onClick={build} style={{
+        width:"100%", padding:"14px", border:"none", borderRadius:10, cursor:"pointer",
+        fontFamily:"'Cinzel', serif", fontSize:13, fontWeight:700, color:"#0a0a0a", letterSpacing:3,
+        background:"linear-gradient(135deg, #c9a84c, #f0d68a, #c9a84c)", backgroundSize: "200% 100%",
+        boxShadow: "0 4px 20px rgba(201,168,76,0.2), inset 0 1px 0 rgba(255,255,255,0.2)",
+        transition: "all 0.3s cubic-bezier(0.19,1,0.22,1)",
+      }}
+        onMouseOver={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 30px rgba(201,168,76,0.3), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+        onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(201,168,76,0.2), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+      >
         ✦ CONSTRUCT ✦
       </button>
     </div>
@@ -1744,27 +1862,36 @@ Be specific. Reference actual cards. Give percentages. Be opinionated.` }],
     const isSelected = selected.includes(entry.id);
     return (
       <div style={{
-        background: isSelected ? "#12100a" : "#0c0c0c",
-        border: `1px solid ${isSelected ? "#c9a84c44" : "#181818"}`,
-        borderRadius: 8, padding: 12, cursor: "pointer", transition: "all 0.2s",
+        background: isSelected ? "rgba(201,168,76,0.03)" : "rgba(0,0,0,0.25)",
+        border: `1px solid ${isSelected ? "#c9a84c33" : "rgba(255,255,255,0.04)"}`,
+        borderRadius: 10, padding: 14, cursor: "pointer",
+        transition: "all 0.25s cubic-bezier(0.19,1,0.22,1)",
         position: "relative", overflow: "hidden",
+        boxShadow: isSelected ? "0 0 20px rgba(201,168,76,0.05)" : "none",
       }}
         onClick={() => toggle(entry.id)}
-        onMouseOver={e => e.currentTarget.style.borderColor = isSelected ? "#c9a84c66" : "#252525"}
-        onMouseOut={e => e.currentTarget.style.borderColor = isSelected ? "#c9a84c44" : "#181818"}>
-        {isSelected && <div style={{ position: "absolute", top: 6, right: 8, background: "#c9a84c", color: "#0a0a0a", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, fontFamily: "'Cinzel', serif" }}>SELECTED</div>}
-        <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
-          {colors.map(c => <span key={c} style={{ fontSize: 12 }}>{COLORS.find(x => x.id === c)?.sym || "?"}</span>)}
-          <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: "#c9a84c", fontWeight: 600, flex: 1 }}>{entry.name}</span>
-          {entry.totalPrice > 0 && <span style={{ fontSize: 10, color: "#4DB87A", fontWeight: 700 }}>${entry.totalPrice.toFixed(0)}</span>}
+        onMouseOver={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c55" : "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+        onMouseOut={e => { e.currentTarget.style.borderColor = isSelected ? "#c9a84c33" : "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+        {isSelected && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #c9a84c, #f0d68a)" }} />}
+        {isSelected && <div style={{ position: "absolute", top: 8, right: 8, background: "#c9a84c", color: "#0a0a0a", fontSize: 7, fontWeight: 700, padding: "2px 6px", borderRadius: 4, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>SELECTED</div>}
+        <div style={{ display: "flex", gap: 5, marginBottom: 6, alignItems: "center" }}>
+          {colors.map(c => <span key={c} style={{ fontSize: 11 }}>{COLORS.find(x => x.id === c)?.sym || "?"}</span>)}
+          <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: isSelected ? "#c9a84c" : "#999", fontWeight: 600, flex: 1, transition: "color 0.2s" }}>{entry.name}</span>
+          {entry.totalPrice > 0 && <span style={{ fontSize: 9, color: "#4DB87A88", fontWeight: 700, fontFamily: "'Cinzel', serif" }}>${entry.totalPrice.toFixed(0)}</span>}
         </div>
-        <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>{count} cards · {entry.format || "Modern"}</div>
-        <div style={{ fontSize: 9, color: "#333", lineHeight: 1.4 }}>
+        <div style={{ fontSize: 9, color: "#444", marginBottom: 6, fontFamily: "'Crimson Text', serif" }}>{count} cards · {entry.format || "Modern"}</div>
+        <div style={{ fontSize: 9, color: "#2a2a2a", lineHeight: 1.4 }}>
           {entry.deck.mainboard.filter(c => !c.cardData?.type_line?.includes("Land")).slice(0, 5).map(c => `${c.qty} ${c.name}`).join(" · ")}
         </div>
-        <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-          <button onClick={e => { e.stopPropagation(); setViewDeck(entry); }} style={{ ...xBtn, fontSize: 9, padding: "3px 8px" }}>👁 View</button>
-          <button onClick={e => { e.stopPropagation(); deleteDeck(entry.id); }} style={{ ...xBtn, fontSize: 9, padding: "3px 8px", color: "#E05A50", borderColor: "#E05A5033" }}>✗</button>
+        <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
+          <button onClick={e => { e.stopPropagation(); setViewDeck(entry); }} style={{ ...xBtn, fontSize: 9, padding: "4px 10px", borderRadius: 5, transition: "all 0.2s" }}
+            onMouseOver={e => e.currentTarget.style.borderColor = "#c9a84c33"}
+            onMouseOut={e => e.currentTarget.style.borderColor = "#1f1f1f"}
+          >👁 View</button>
+          <button onClick={e => { e.stopPropagation(); deleteDeck(entry.id); }} style={{ ...xBtn, fontSize: 9, padding: "4px 10px", color: "#E05A5088", borderColor: "#E05A5022", borderRadius: 5, transition: "all 0.2s" }}
+            onMouseOver={e => { e.currentTarget.style.color = "#E05A50"; e.currentTarget.style.borderColor = "#E05A5044"; }}
+            onMouseOut={e => { e.currentTarget.style.color = "#E05A5088"; e.currentTarget.style.borderColor = "#E05A5022"; }}
+          >✗</button>
         </div>
       </div>
     );
@@ -2271,22 +2398,20 @@ export default function MTGDeckArchitect() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
-        ::selection { background: #c9a84c33; }
+        ::-webkit-scrollbar-thumb { background: #1f1f1f; border-radius: 10px; transition: background 0.2s; }
+        ::-webkit-scrollbar-thumb:hover { background: #c9a84c66; }
+        ::selection { background: #c9a84c33; color: #fff; }
         @keyframes orbital { from { transform: rotate(0deg) translateX(10%) rotate(0deg); } to { transform: rotate(360deg) translateX(10%) rotate(-360deg); } }
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(201, 168, 76, 0.1); } 50% { box-shadow: 0 0 40px rgba(201, 168, 76, 0.3); } }
-        .lux-card { transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1); }
-        .lux-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 15px 35px rgba(0,0,0,0.5); border-color: rgba(201, 168, 76, 0.3); }
-        .glass-panel { background: rgba(10, 10, 10, 0.6) !important; backdrop-filter: blur(20px) saturate(180%) !important; WebkitBackdropFilter: blur(20px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 12px !important; }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
+        .lux-card { transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1); }
+        .lux-card:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: rgba(201, 168, 76, 0.2); }
+        .glass-panel { background: rgba(10, 10, 10, 0.6) !important; backdrop-filter: blur(24px) saturate(180%) !important; WebkitBackdropFilter: blur(24px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.06) !important; border-radius: 14px !important; }
         @keyframes inkDissolve {
-          0% { filter: blur(20px) contrast(200%); opacity: 0; transform: scale(1.02); }
-          100% { filter: blur(0) contrast(100%); opacity: 1; transform: scale(1); }
+          0% { filter: blur(12px) contrast(150%); opacity: 0; transform: translateY(8px); }
+          100% { filter: blur(0) contrast(100%); opacity: 1; transform: translateY(0); }
         }
         @keyframes successPulse {
           0% { opacity: 0; background: radial-gradient(circle, rgba(77, 184, 122, 0.4) 0%, transparent 70%); }
@@ -2298,46 +2423,67 @@ export default function MTGDeckArchitect() {
           50% { opacity: 1; transform: scale(1.1); }
           100% { opacity: 0; transform: scale(1.4); }
         }
+        @keyframes cardEntrance {
+          from { opacity: 0; transform: translateY(6px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes typingDot {
+          0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes barGrow {
+          from { transform: scaleY(0); }
+          to { transform: scaleY(1); }
+        }
+        button { font-family: inherit; }
+        button:focus-visible { outline: 1px solid #c9a84c55; outline-offset: 2px; }
+        input:focus-visible, textarea:focus-visible { border-color: #c9a84c44 !important; box-shadow: 0 0 0 2px rgba(201,168,76,0.08) !important; }
       `}</style>
 
-      {/* Header — fixed so it never overlaps scrollable content */}
-      <div className="glass-panel" style={{ ...GLASS_STYLE, position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 0, borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h1 style={{ fontFamily: "'Cinzel', serif", fontSize: 20, fontWeight: 700, background: "linear-gradient(135deg, #c9a84c, #f0d68a, #c9a84c)", backgroundSize: "200% 100%", animation: "shimmer 8s ease infinite", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 3 }}>✦ ARCANUM</h1>
-          <span style={{ color: "rgba(255,255,255,0.05)", fontSize: 16 }}>|</span>
-          <span style={{ color: "#555", fontSize: 11, fontStyle: "italic" }}>Autonomous MTG Deck Architect</span>
+      {/* Header */}
+      <div className="glass-panel" style={{ ...GLASS_STYLE, position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 0, borderBottom: "1px solid rgba(255,255,255,0.04)", backdropFilter: "blur(30px) saturate(200%)", WebkitBackdropFilter: "blur(30px) saturate(200%)", background: "rgba(5, 5, 5, 0.75)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #c9a84c22, #c9a84c08)", border: "1px solid #c9a84c22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, animation: "breathe 4s ease-in-out infinite" }}>✦</div>
+            <h1 style={{ fontFamily: "'Cinzel', serif", fontSize: 17, fontWeight: 700, background: "linear-gradient(135deg, #c9a84c, #f0d68a, #c9a84c)", backgroundSize: "200% 100%", animation: "shimmer 8s ease infinite", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 3 }}>ARCANUM</h1>
+          </div>
+          <span style={{ color: "#555", fontSize: 10, fontStyle: "italic", opacity: 0.6 }}>MTG Deck Architect</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: 10, padding: 3, border: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", background: "rgba(0,0,0,0.35)", borderRadius: 10, padding: 3, border: "1px solid rgba(255,255,255,0.04)" }}>
             {[
-              { id: "agent", label: "✦ AGENT" },
-              { id: "builder", label: "⚙ BUILDER" },
-              { id: "arena", label: `⚔ ARENA${vault.length ? ` (${vault.length})` : ""}` },
-              { id: "vault", label: `VAULT` },
-              { id: "inventory", label: "🎒 COLLECTION" },
+              { id: "agent", label: "AGENT", icon: "✦" },
+              { id: "builder", label: "BUILDER", icon: "⚙" },
+              { id: "arena", label: `ARENA${vault.length ? ` (${vault.length})` : ""}`, icon: "⚔" },
+              { id: "vault", label: "VAULT", icon: "💎" },
+              { id: "inventory", label: "COLLECTION", icon: "🎒" },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
-                padding: "8px 18px", border: "none", cursor: "pointer", borderRadius: 8,
-                background: tab === t.id ? "rgba(201, 168, 76, 0.1)" : "transparent",
-                fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: 2,
-                color: tab === t.id ? "#c9a84c" : "#666", transition: "all 0.3s cubic-bezier(0.19, 1, 0.22, 1)",
-                boxShadow: tab === t.id ? "0 4px 15px rgba(0,0,0,0.4)" : "none",
-              }}>{t.label}</button>
+                padding: "7px 16px", border: "none", cursor: "pointer", borderRadius: 8, position: "relative",
+                background: tab === t.id ? "rgba(201, 168, 76, 0.12)" : "transparent",
+                fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: 1.5,
+                color: tab === t.id ? "#c9a84c" : "#555", transition: "all 0.25s cubic-bezier(0.19, 1, 0.22, 1)",
+                boxShadow: tab === t.id ? "0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(201,168,76,0.1)" : "none",
+              }}
+                onMouseOver={e => { if (tab !== t.id) e.currentTarget.style.color = "#888"; }}
+                onMouseOut={e => { if (tab !== t.id) e.currentTarget.style.color = "#555"; }}
+              ><span style={{ marginRight: 4, fontSize: 10 }}>{t.icon}</span> {t.label}</button>
             ))}
           </div>
-          {/* Provider badge + settings */}
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.06)" }} />
           <button onClick={() => setShowSettings(true)} style={{
             display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 10px", background: "#0d0d0d", border: "1px solid #181818",
-            borderRadius: 7, cursor: "pointer", transition: "all 0.2s",
+            padding: "6px 12px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 8, cursor: "pointer", transition: "all 0.25s",
           }}
-            onMouseOver={e => e.currentTarget.style.borderColor = "#c9a84c33"}
-            onMouseOut={e => e.currentTarget.style.borderColor = "#181818"}
+            onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c33"; e.currentTarget.style.background = "rgba(201,168,76,0.05)"; }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.background = "rgba(0,0,0,0.3)"; }}
           >
-            <span style={{ fontSize: 9, color: providerCfg.providerId === "groq-free" ? "#4DB87A" : "#c9a84c", fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: providerCfg.providerId === "groq-free" ? "#4DB87A" : "#c9a84c", boxShadow: `0 0 6px ${providerCfg.providerId === "groq-free" ? "#4DB87A55" : "#c9a84c55"}` }} />
+            <span style={{ fontSize: 9, color: "#777", fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
               {activeProvider.name}
             </span>
-            <span style={{ fontSize: 12, color: "#444" }}>⚙</span>
+            <span style={{ fontSize: 10, color: "#444", transition: "color 0.2s" }}>⚙</span>
           </button>
         </div>
       </div>
@@ -2433,20 +2579,26 @@ export default function MTGDeckArchitect() {
 
       {/* Save Modal */}
       {saveModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSaveModal(null)}>
-          <div style={{ background: "#0d0d0d", border: "1px solid #c9a84c33", borderRadius: 12, padding: 24, width: 380 }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 14, color: "#c9a84c", marginBottom: 16, letterSpacing: 2 }}>💎 SAVE TO VAULT</h3>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, color: "#555", marginBottom: 4, letterSpacing: 1 }}>DECK NAME</div>
-              <input value={saveName} onChange={e => setSaveName(e.target.value)} autoFocus onKeyDown={e => e.key === "Enter" && confirmSave()}
-                style={{ width: "100%", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 5, padding: "8px 12px", color: "#bbb", fontSize: 14, fontFamily: "'Cinzel', serif", outline: "none" }} />
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease" }} onClick={() => setSaveModal(null)}>
+          <div style={{ background: "#0c0c0c", border: "1px solid #c9a84c22", borderRadius: 16, padding: 28, width: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.6)", animation: "slideUp 0.3s ease" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "linear-gradient(135deg, #c9a84c15, #c9a84c08)", border: "1px solid #c9a84c22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>💎</div>
+              <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 15, color: "#c9a84c", letterSpacing: 2 }}>SAVE TO VAULT</h3>
             </div>
-            <div style={{ fontSize: 10, color: "#444", marginBottom: 16 }}>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 8, color: "#555", marginBottom: 5, letterSpacing: 1.5, fontFamily: "'Cinzel', serif" }}>DECK NAME</div>
+              <input value={saveName} onChange={e => setSaveName(e.target.value)} autoFocus onKeyDown={e => e.key === "Enter" && confirmSave()}
+                style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 14px", color: "#ccc", fontSize: 14, fontFamily: "'Cinzel', serif", outline: "none", transition: "border-color 0.2s, box-shadow 0.2s" }} />
+            </div>
+            <div style={{ fontSize: 10, color: "#444", marginBottom: 20, fontFamily: "'Crimson Text', serif" }}>
               {saveModal.mainboard.reduce((a, c) => a + c.qty, 0)} cards · {saveModal.sideboard.reduce((a, c) => a + c.qty, 0)} sideboard
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setSaveModal(null)} style={xBtn}>Cancel</button>
-              <button onClick={confirmSave} style={{ ...xBtn, background: "#c9a84c15", color: "#c9a84c", borderColor: "#c9a84c44" }}>✦ Save</button>
+              <button onClick={() => setSaveModal(null)} style={{ ...xBtn, borderRadius: 8, padding: "8px 16px" }}>Cancel</button>
+              <button onClick={confirmSave} style={{ ...xBtn, background: "linear-gradient(135deg, #c9a84c15, #c9a84c08)", color: "#c9a84c", borderColor: "#c9a84c33", borderRadius: 8, padding: "8px 20px", transition: "all 0.25s" }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = "#c9a84c55"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(201,168,76,0.1)"; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = "#c9a84c33"; e.currentTarget.style.boxShadow = "none"; }}
+              >✦ Save</button>
             </div>
           </div>
         </div>
@@ -2459,25 +2611,28 @@ export default function MTGDeckArchitect() {
           style={{ position: "fixed", inset: 0, zIndex: 10000 }}
           onContextMenu={e => { e.preventDefault(); setContextMenu(null); }}
         >
-          <div className="glass-panel" style={{
-            ...GLASS_STYLE,
+          <div style={{
             position: "absolute", left: contextMenu.x, top: contextMenu.y,
-            minWidth: 160, padding: 6, zIndex: 10001,
-            animation: "fadeIn 0.15s cubic-bezier(0.19, 1, 0.22, 1)"
+            minWidth: 180, padding: 6, zIndex: 10001, borderRadius: 12,
+            background: "rgba(12,12,12,0.95)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.5)",
+            animation: "slideUp 0.15s cubic-bezier(0.19, 1, 0.22, 1)"
           }}>
-            <div style={{ fontSize: 9, color: "#c9a84c", padding: "4px 10px", borderBottom: "1px solid rgba(201,168,76,0.1)", marginBottom: 4, fontFamily: "'Cinzel', serif" }}>{contextMenu.card.name.toUpperCase()}</div>
+            <div style={{ fontSize: 8, color: "#c9a84c88", padding: "5px 12px", borderBottom: "1px solid rgba(255,255,255,0.04)", marginBottom: 4, fontFamily: "'Cinzel', serif", letterSpacing: 1.5 }}>{contextMenu.card.name.toUpperCase()}</div>
             {[
               { label: "🎒 Add to Collection", action: () => handleUpdateInventory(contextMenu.card.name, 1) },
-              { label: "🛒 View on Scryfall", action: () => window.open(contextMenu.card.cardData?.scryfall_uri, "_blank") },
+              { label: "🔍 View on Scryfall", action: () => window.open(contextMenu.card.cardData?.scryfall_uri, "_blank") },
             ].map(item => (
               <button
                 key={item.label}
                 onClick={(e) => { e.stopPropagation(); item.action(); setContextMenu(null); }}
                 style={{
-                  ...glassBtn, width: "100%", padding: "8px 12px", textAlign: "left", fontSize: 11, color: "#aaa", border: "none", background: "transparent"
+                  width: "100%", padding: "8px 12px", textAlign: "left", fontSize: 11, color: "#888",
+                  border: "none", background: "transparent", cursor: "pointer", borderRadius: 6,
+                  fontFamily: "'Crimson Text', serif", transition: "all 0.15s",
                 }}
-                onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}
-                onMouseOut={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#aaa"; }}
+                onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#ddd"; }}
+                onMouseOut={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }}
               >{item.label}</button>
             ))}
           </div>
